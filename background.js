@@ -5,6 +5,24 @@ let domainTimers = {
     timeLeft: 60,
     resetInterval: 8,
     lastResetTimestamp: Date.now()
+  },
+  'old.reddit.com': {
+    originalTime: 60,
+    timeLeft: 60,
+    resetInterval: 8,
+    lastResetTimestamp: Date.now()
+  },
+  'www.twitter.com': {
+    originalTime: 60,
+    timeLeft: 60,
+    resetInterval: 8,
+    lastResetTimestamp: Date.now()
+  },
+  'www.x.com': {
+    originalTime: 60,
+    timeLeft: 60,
+    resetInterval: 8,
+    lastResetTimestamp: Date.now()
   }
 };
 

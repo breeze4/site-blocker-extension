@@ -1,5 +1,12 @@
 // background.js
-let domainTimers = {};
+let domainTimers = {
+  'www.reddit.com': {
+    originalTime: 60,
+    timeLeft: 60,
+    resetInterval: 8,
+    lastResetTimestamp: Date.now()
+  }
+};
 
 // This only runs once, when the extension is first loaded or probably when the browser starts?
 // Load existing timer data from storage
@@ -22,6 +29,7 @@ function resetTimersIfNeeded() {
     if (currentTime - timerData.lastResetTimestamp >= nextResetTimestamp) {
       timerData.timeLeft = timerData.originalTime;
       timerData.lastResetTimestamp = currentTime;
+      domainTimers[domain] = timerData;
     }
   }
 
@@ -71,6 +79,10 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
                 clearTimeout(timerId);
               }
             });
+          } else {
+            // Time has expired, block navigation within the domain
+            chrome.tabs.update(tabId, { url: "chrome://newtab" });
+            console.log(`Time's up for ${domain}. Navigation is blocked.`);
           }
         }
       }

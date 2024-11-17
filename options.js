@@ -1,14 +1,15 @@
 document.getElementById('siteForm').addEventListener('submit', (event) => {
-  debugger;
   event.preventDefault();
 
   const domain = document.getElementById('domainInput').value.trim();
-  const timer = parseInt(document.getElementById('timerInput').value.trim(), 10);
+  const originalTime = parseInt(document.getElementById('originalTime').value.trim(), 10);
+  const timeLeft = parseInt(document.getElementById('timeLeft').value.trim(), 10);
+  const resetInterval = parseInt(document.getElementById('resetInterval').value.trim(), 10);
 
-  if (domain && timer) {
+  if (domain && originalTime && timeLeft && resetInterval) {
     chrome.storage.local.get('domainTimers', (result) => {
       const domainTimers = result.domainTimers || {};
-      domainTimers[domain] = timer;
+      domainTimers[domain] = { originalTime, timeLeft, resetInterval, lastResetTimestamp: Date.now() };
 
       chrome.storage.local.set({ domainTimers }, () => {
         renderDomainList();
@@ -23,9 +24,10 @@ function renderDomainList() {
     const domainList = document.getElementById('domainList');
     domainList.innerHTML = '';
 
-    for (const [domain, time] of Object.entries(domainTimers)) {
+    for (const [domain, { originalTime, timeLeft, resetInterval, lastResetTimestamp }] of Object.entries(domainTimers)) {
       const listItem = document.createElement('li');
-      listItem.textContent = `${domain}: ${time} seconds remaining`;
+      listItem.textContent = `${domain} - ${originalTime} sec allowed: ${timeLeft} seconds remaining,` +
+        ` resets every ${resetInterval} hours, last reset: ${new Date(lastResetTimestamp).toLocaleString()}|`;
       domainList.appendChild(listItem);
     }
   });

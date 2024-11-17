@@ -51,7 +51,9 @@ document.getElementById('resetTimersButton').addEventListener('click', (event) =
     const domainTimers = result.domainTimers || {};
     const domainTimersReset = resetTimers(domainTimers);
 
-    chrome.storage.local.set({ domainTimers: domainTimersReset });
+    chrome.storage.local.set({ domainTimers: domainTimersReset }, () => {
+      renderDomainList()
+    });
   });
 
 });

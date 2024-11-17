@@ -12,19 +12,20 @@ let domainTimers = {
     resetInterval: 8,
     lastResetTimestamp: Date.now()
   },
-  'www.twitter.com': {
+  'twitter.com': {
     originalTime: 60,
     timeLeft: 60,
     resetInterval: 8,
     lastResetTimestamp: Date.now()
   },
-  'www.x.com': {
+  'x.com': {
     originalTime: 60,
     timeLeft: 60,
     resetInterval: 8,
     lastResetTimestamp: Date.now()
   }
 };
+chrome.storage.local.set({ domainTimers });
 
 // This only runs once, when the extension is first loaded or probably when the browser starts?
 // Load existing timer data from storage

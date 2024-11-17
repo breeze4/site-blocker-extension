@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Site Timer Blocker Settings</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+    }
+
+    input {
+      margin: 5px;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Configure Sites</h1>
+  <form id="siteForm">
+    <input type="text" id="domainInput" placeholder="Enter domain (e.g., example.com)">
+    <input type="number" id="timerInput" placeholder="Time in seconds">
+    <button type="submit">Add/Update Timer</button>
+  </form>
+  <ul id="domainList"></ul>
+
+  <script src="options.js"></script>
+</body>
+
+</html>

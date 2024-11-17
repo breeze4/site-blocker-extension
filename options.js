@@ -33,5 +33,28 @@ function renderDomainList() {
   });
 }
 
+document.getElementById('resetTimersButton').addEventListener('click', (event) => {
+  event.preventDefault();
+
+  function resetTimers(domainTimers) {
+    const currentTime = Date.now();
+
+    for (const [domain, timerData] of Object.entries(domainTimers)) {
+      timerData.timeLeft = timerData.originalTime;
+      timerData.lastResetTimestamp = currentTime;
+      domainTimers[domain] = timerData;
+    }
+    return domainTimers;
+  }
+
+  chrome.storage.local.get('domainTimers', (result) => {
+    const domainTimers = result.domainTimers || {};
+    const domainTimersReset = resetTimers(domainTimers);
+
+    chrome.storage.local.set({ domainTimers: domainTimersReset });
+  });
+
+});
+
 // Initial render
 renderDomainList();

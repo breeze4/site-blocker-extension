@@ -22,9 +22,6 @@ function resetTimersIfNeeded() {
   const currentTime = Date.now();
 
   for (const [domain, timerData] of Object.entries(domainTimers)) {
-    if (!timerData.lastResetTimestamp) {
-
-    }
     const nextResetTimestamp = timerData.resetInterval * 60 * 60 * 1000;
     if (currentTime - timerData.lastResetTimestamp >= nextResetTimestamp) {
       timerData.timeLeft = timerData.originalTime;
@@ -59,6 +56,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
               const endTime = Date.now();
               const elapsedSeconds = Math.floor((endTime - startTime) / 1000);
               domainTimers[domain].timeLeft = Math.max(0, timeLeft - elapsedSeconds);
+              console.log(`decreased time for ${domain} by ${elapsedSeconds} seconds`)
 
               chrome.storage.local.set({ domainTimers });
               if (domainTimers[domain].timeLeft <= 0) {

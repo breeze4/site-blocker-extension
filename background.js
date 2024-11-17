@@ -41,8 +41,9 @@ function resetTimersIfNeeded() {
   const currentTime = Date.now();
 
   for (const [domain, timerData] of Object.entries(domainTimers)) {
-    const nextResetTimestamp = timerData.resetInterval * 60 * 60 * 1000;
-    if (currentTime - timerData.lastResetTimestamp >= nextResetTimestamp) {
+    const resetIntervalMs = timerData.resetInterval * 60 * 60 * 1000;
+    const resetCanHappenAfterTimestamp = timerData.lastResetTimestamp + resetIntervalMs;
+    if (currentTime >= resetCanHappenAfterTimestamp) {
       timerData.timeLeft = timerData.originalTime;
       timerData.lastResetTimestamp = currentTime;
       domainTimers[domain] = timerData;

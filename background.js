@@ -38,6 +38,7 @@ let defaultDomainTimers = {
   },
 };
 let _domainTimers = {};
+let activeTimers = {};  // to store timer IDs for each active domain tab
 
 function setToStorage(keyValuePairs) {
   return new Promise((resolve, reject) => {
@@ -54,6 +55,7 @@ function setToStorage(keyValuePairs) {
 function getFromStorage(key) {
   return new Promise((resolve, reject) => {
     chrome.storage.local.get(key, (result) => {
+      console.debug('Getting the domain timers', JSON.stringify(result))
       if (chrome.runtime.lastError) {
         reject(chrome.runtime.lastError);
       } else {
@@ -66,16 +68,18 @@ function getFromStorage(key) {
 async function getDomainTimers() {
   try {
     const domainTimers = await getFromStorage("domainTimers");
-    console.log("Domain Timers:", domainTimers);
+    console.debug("Domain Timers:", domainTimers);
+    return domainTimers;
   } catch (error) {
     console.error("Error retrieving domainTimers:", error);
   }
+  return null;
 }
 
 async function saveDomainTimers(domainTimers) {
   try {
     await setToStorage({ domainTimers });
-    console.log("Domain timers saved successfully.", domainTimers);
+    console.debug("Domain timers saved successfully.", domainTimers);
   } catch (error) {
     console.error("Error saving domain timers:", error);
   }
@@ -107,16 +111,16 @@ async function resetTimersIfNeeded(domainTimers) {
 async function handleTabUpdates() {
   while (true) {
     const { tabId, changeInfo, tab } = await waitForTabUpdate();
-    console.log(`Tab ${tabId} updated:`, changeInfo, tab);
+    console.debug(`Tab ${tabId} updated:`, changeInfo, tab);
 
     // when the loading is complete
     if (changeInfo.status === 'complete' && tab.url) {
-      console.log(`Tab ${tabId} finished loading. URL: ${tab.url}`);
+      console.debug(`Tab ${tabId} finished loading. URL: ${tab.url}`);
 
       const url = new URL(tab.url);
       const domain = url.hostname;
 
-      let { domainTimers } = await getDomainTimers();
+      let domainTimers = await getDomainTimers();
       if (!domainTimers) {
         console.error('Domain timers not defined for an unexpected reason');
       }
@@ -128,47 +132,40 @@ async function handleTabUpdates() {
 
       const domainTimer = domainTimers[domain];
       if (!domainTimer) {
-        console.log(`Not a domain being tracked: ${domain}`);
+        console.debug(`Not a domain being tracked: ${domain}`);
+        continue;
       }
 
-      const currentTimeLeft = domainTimer.timeLeft;
-      // TODO: fix this logic
-      // the timer is not decrement when the page navigates, it only does it when you close the page
-      // so if you are on reddit and go to a link, it doesn't decrement the timer - that's wrong!
-      // this is more complex because if I am on multiple tabs - which one is the one to decrement time? hmmm need to think about it
-      // if (currentTimeLeft > 0) {
-      //   let timerId;
+      // If a timer is already running for this tab, clear it
+      if (activeTimers[tabId]) {
+        clearInterval(activeTimers[tabId]);
+      }
 
-      //   const decrementTimer = () => {
-      //     const endTime = Date.now();
-      //     const elapsedSeconds = Math.floor((endTime - startTime) / 1000);
-      //     domainTimers[domain].timeLeft = Math.max(0, currentTimeLeft - elapsedSeconds);
-      //     console.log(`decreased time for ${domain} by ${elapsedSeconds} seconds`)
+      if (domainTimer.timeLeft > 0) {
+        // Start decrementing the timer for the domain as long as the tab is active
+        const startTime = Date.now();
 
-      //     chrome.storage.local.set({ domainTimers });
-      //     if (domainTimers[domain].timeLeft <= 0) {
-      //       console.log(`time has expired for ${domain}`)
-      //       // chrome.tabs.remove(tabId);
-      //     }
-      //   };
+        activeTimers[tabId] = setInterval(async () => {
+          const currentTime = Date.now();
+          const elapsedSeconds = Math.floor((currentTime - startTime) / 1000);
+          domainTimers[domain].timeLeft = Math.max(0, domainTimer.timeLeft - elapsedSeconds);
+          await saveDomainTimers(domainTimers);
 
-      //   const startTime = Date.now();
-      //   timerId = setTimeout(() => {
-      //     decrementTimer();
-      //     clearTimeout(timerId);
-      //   }, timeLeft * 1000);
+          console.debug(`Decreased time for ${domain} by ${elapsedSeconds} seconds`);
 
-      //   chrome.tabs.onRemoved.addListener((closedTabId) => {
-      //     if (tabId === closedTabId) {
-      //       decrementTimer();
-      //       clearTimeout(timerId);
-      //     }
-      //   });
-      // } else {
-      //   // Time has expired, block navigation within the domain
-      //   chrome.tabs.update(tabId, { url: "chrome://newtab" });
-      //   console.log(`Time's up for ${domain}. Navigation is blocked.`);
-      // }
+          // If time runs out, close the tab
+          if (domainTimers[domain].timeLeft <= 0) {
+            clearInterval(activeTimers[tabId]);
+            delete activeTimers[tabId];
+            // chrome.tabs.update(tabId, { url: "chrome://newtab" });
+            console.debug(`Time's up for ${domain}. Navigation is blocked.`);
+          }
+        }, 3000);
+      } else {
+        // If time has already expired, block navigation
+        chrome.tabs.update(tabId, { url: "chrome://newtab" });
+        console.debug(`Time's up for ${domain}. Navigation is blocked.`);
+      }
     }
   }
 }
@@ -184,7 +181,7 @@ async function initializeTimers() {
 
 // This only runs once, when the extension is first loaded or probably when the browser starts?
 async function onInitialize() {
-  console.log('Initializing storage and setting up tab update handler');
+  console.debug('Initializing storage and setting up tab update handler');
   // Load existing timer data from storage into global object memory and then set up tab update handler
   await initializeTimers();
   handleTabUpdates();

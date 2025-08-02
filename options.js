@@ -5,14 +5,19 @@ document.getElementById('siteForm').addEventListener('submit', (event) => {
   // Prevent the default form submission behavior.
   event.preventDefault();
 
-  // Get the values from the new input fields.
+  // Get the values from the form fields.
   const domain = document.getElementById('domainInput').value.trim();
-  // Time is entered in minutes and converted to seconds for storage.
-  const originalTimeInMinutes = parseInt(document.getElementById('originalTimeInput').value.trim(), 10);
-  const resetInterval = parseInt(document.getElementById('resetIntervalInput').value.trim(), 10);
+  
+  // Get selected radio button values
+  const timeAllowedRadio = document.querySelector('input[name="timeAllowed"]:checked');
+  const resetIntervalRadio = document.querySelector('input[name="resetInterval"]:checked');
+  
+  // Time is already in minutes from radio button values and converted to seconds for storage.
+  const originalTimeInMinutes = timeAllowedRadio ? parseInt(timeAllowedRadio.value, 10) : null;
+  const resetInterval = resetIntervalRadio ? parseInt(resetIntervalRadio.value, 10) : null;
 
   // Check if all the required fields have a value.
-  if (domain && !isNaN(originalTimeInMinutes) && !isNaN(resetInterval)) {
+  if (domain && originalTimeInMinutes !== null && resetInterval !== null) {
     const originalTimeInSeconds = originalTimeInMinutes * 60;
     // Get the current list of domain timers from storage.
     chrome.storage.local.get('domainTimers', (result) => {
@@ -32,8 +37,9 @@ document.getElementById('siteForm').addEventListener('submit', (event) => {
         renderDomainList();
         // Clear the form fields for the next entry.
         document.getElementById('domainInput').value = '';
-        document.getElementById('originalTimeInput').value = '';
-        document.getElementById('resetIntervalInput').value = '';
+        // Reset radio buttons to default selections
+        document.getElementById('time5').checked = true;
+        document.getElementById('reset8').checked = true;
       });
     });
   }
@@ -55,25 +61,178 @@ function renderDomainList() {
   chrome.storage.local.get('domainTimers', (result) => {
     const domainTimers = result.domainTimers || {};
     const domainListBody = document.getElementById('domainListBody');
+    
+    // Store current radio button selections and save button states to preserve during re-render
+    const currentSelections = {};
+    const saveButtonStates = {};
+    
+    // Collect current state before clearing
+    const existingRows = domainListBody.querySelectorAll('tr');
+    existingRows.forEach(row => {
+      const domain = row.querySelector('.save-button')?.dataset.domain;
+      if (domain) {
+        const timeRadio = row.querySelector('[data-field="originalTime"] input[type="radio"]:checked');
+        const resetRadio = row.querySelector('[data-field="resetInterval"] input[type="radio"]:checked');
+        const saveButton = row.querySelector('.save-button');
+        
+        currentSelections[domain] = {
+          timeValue: timeRadio ? timeRadio.value : null,
+          resetValue: resetRadio ? resetRadio.value : null
+        };
+        
+        saveButtonStates[domain] = saveButton ? !saveButton.disabled : false;
+      }
+    });
+    
     // Clear the existing table body before rendering the updated list.
     domainListBody.innerHTML = '';
 
     // Iterate over the domain timers and create a table row for each one.
     for (const [domain, { originalTime, timeLeft, resetInterval, lastResetTimestamp }] of Object.entries(domainTimers)) {
       const row = document.createElement('tr');
-
-      // Time is displayed in minutes and seconds for readability.
-      row.innerHTML = `
-        <td>${domain}</td>
-        <td class="editable" data-field="originalTime">${Math.floor(originalTime / 60)}</td>
-        <td>${formatTime(timeLeft)}</td>
-        <td class="editable" data-field="resetInterval">${resetInterval}</td>
-        <td>${new Date(lastResetTimestamp).toLocaleString()}</td>
-        <td>
-          <button class="save-button" data-domain="${domain}" disabled>Save</button>
-          <button class="delete-button" data-domain="${domain}">Delete</button>
-        </td>
+      
+      // Create cells
+      const domainCell = document.createElement('td');
+      domainCell.textContent = domain;
+      
+      // Time Allowed cell with radio buttons
+      const timeAllowedCell = document.createElement('td');
+      timeAllowedCell.className = 'radio-cell';
+      timeAllowedCell.setAttribute('data-field', 'originalTime');
+      
+      const timeRadioGroup = document.createElement('div');
+      timeRadioGroup.className = 'table-radio-group';
+      const timeRadioName = `time_${domain}_${Date.now()}`;
+      const timeOptions = [1, 5, 10, 15, 30, 60, 120];
+      const currentTimeMinutes = Math.floor(originalTime / 60);
+      
+      // Determine which option should be selected
+      let selectedTimeOption;
+      if (currentSelections[domain] && currentSelections[domain].timeValue) {
+        // Use preserved selection if available
+        selectedTimeOption = parseInt(currentSelections[domain].timeValue);
+      } else {
+        // Find closest option to stored value
+        selectedTimeOption = timeOptions[0];
+        let closestTimeDiff = Math.abs(currentTimeMinutes - selectedTimeOption);
+        timeOptions.forEach(minutes => {
+          const diff = Math.abs(currentTimeMinutes - minutes);
+          if (diff < closestTimeDiff) {
+            closestTimeDiff = diff;
+            selectedTimeOption = minutes;
+          }
+        });
+      }
+      
+      timeOptions.forEach(minutes => {
+        const radioOption = document.createElement('div');
+        radioOption.className = 'table-radio-option';
+        
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = timeRadioName;
+        radio.value = minutes;
+        radio.id = `${timeRadioName}_${minutes}`;
+        if (minutes === selectedTimeOption) radio.checked = true;
+        
+        const label = document.createElement('label');
+        label.htmlFor = radio.id;
+        label.textContent = minutes >= 60 ? `${minutes/60} hr` : `${minutes} min`;
+        
+        radioOption.appendChild(radio);
+        radioOption.appendChild(label);
+        timeRadioGroup.appendChild(radioOption);
+      });
+      
+      timeAllowedCell.appendChild(timeRadioGroup);
+      
+      // Time Left cell (display only)
+      const timeLeftCell = document.createElement('td');
+      timeLeftCell.textContent = formatTime(timeLeft);
+      
+      // Reset Interval cell with radio buttons
+      const resetIntervalCell = document.createElement('td');
+      resetIntervalCell.className = 'radio-cell';
+      resetIntervalCell.setAttribute('data-field', 'resetInterval');
+      
+      const resetRadioGroup = document.createElement('div');
+      resetRadioGroup.className = 'table-radio-group';
+      const resetRadioName = `reset_${domain}_${Date.now()}`;
+      const intervalOptions = [1, 2, 4, 8, 12, 24];
+      
+      // Determine which option should be selected
+      let selectedResetOption;
+      if (currentSelections[domain] && currentSelections[domain].resetValue) {
+        // Use preserved selection if available
+        selectedResetOption = parseInt(currentSelections[domain].resetValue);
+      } else {
+        // Find closest option to stored value
+        selectedResetOption = intervalOptions[0];
+        let closestResetDiff = Math.abs(resetInterval - selectedResetOption);
+        intervalOptions.forEach(hours => {
+          const diff = Math.abs(resetInterval - hours);
+          if (diff < closestResetDiff) {
+            closestResetDiff = diff;
+            selectedResetOption = hours;
+          }
+        });
+      }
+      
+      intervalOptions.forEach(hours => {
+        const radioOption = document.createElement('div');
+        radioOption.className = 'table-radio-option';
+        
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = resetRadioName;
+        radio.value = hours;
+        radio.id = `${resetRadioName}_${hours}`;
+        if (hours === selectedResetOption) radio.checked = true;
+        
+        const label = document.createElement('label');
+        label.htmlFor = radio.id;
+        label.textContent = `${hours} hr`;
+        
+        radioOption.appendChild(radio);
+        radioOption.appendChild(label);
+        resetRadioGroup.appendChild(radioOption);
+      });
+      
+      resetIntervalCell.appendChild(resetRadioGroup);
+      
+      // Last Reset cell
+      const lastResetCell = document.createElement('td');
+      lastResetCell.textContent = new Date(lastResetTimestamp).toLocaleString();
+      
+      // Actions cell
+      const actionsCell = document.createElement('td');
+      actionsCell.innerHTML = `
+        <button class="save-button" data-domain="${domain}" disabled>Save</button>
+        <button class="delete-button" data-domain="${domain}">Delete</button>
       `;
+      
+      // Append all cells to row
+      row.appendChild(domainCell);
+      row.appendChild(timeAllowedCell);
+      row.appendChild(timeLeftCell);
+      row.appendChild(resetIntervalCell);
+      row.appendChild(lastResetCell);
+      row.appendChild(actionsCell);
+      
+      // Restore save button state if it was previously enabled
+      const saveButton = row.querySelector('.save-button');
+      if (saveButtonStates[domain]) {
+        saveButton.disabled = false;
+      }
+      
+      // Add change event listeners to radio buttons
+      timeRadioGroup.addEventListener('change', () => {
+        saveButton.disabled = false;
+      });
+      
+      resetRadioGroup.addEventListener('change', () => {
+        saveButton.disabled = false;
+      });
 
       domainListBody.appendChild(row);
     }
@@ -84,49 +243,21 @@ function renderDomainList() {
 document.getElementById('domainListBody').addEventListener('click', (event) => {
   const target = event.target;
 
-  // Logic to make a cell editable when clicked.
-  if (target.classList.contains('editable') && !target.querySelector('input')) {
-    const currentValue = target.textContent;
-    const input = document.createElement('input');
-    input.type = 'number';
-    input.value = currentValue;
-    target.innerHTML = '';
-    target.appendChild(input);
-    input.focus();
-
-    // When the input value changes, enable the save button for that row.
-    input.addEventListener('input', () => {
-      const saveButton = target.closest('tr').querySelector('.save-button');
-      saveButton.disabled = false;
-    });
-
-    // When the input loses focus, revert it back to a normal cell.
-    // This provides a simple way to "cancel" an edit without saving.
-    input.addEventListener('blur', () => {
-      // A small delay is needed to allow the "save" button click to register before the input is removed.
-      setTimeout(() => {
-        const saveButton = target.closest('tr').querySelector('.save-button');
-        if (document.activeElement !== saveButton) {
-            // If the input still exists, replace the cell content.
-            if (target.querySelector('input')) {
-                target.innerHTML = input.value;
-            }
-        }
-      }, 150);
-    });
-  }
+  // Skip click-to-edit for radio button columns (originalTime and resetInterval)
+  // Radio buttons are now always visible in these columns
 
   // Logic to handle the save button click.
   if (target.classList.contains('save-button')) {
     const domainToSave = target.dataset.domain;
     const row = target.closest('tr');
-    const originalTimeInput = row.querySelector('[data-field="originalTime"] input');
-    const resetIntervalInput = row.querySelector('[data-field="resetInterval"] input');
+    
+    // Get values from always-visible radio buttons
+    const originalTimeRadio = row.querySelector('[data-field="originalTime"] input[type="radio"]:checked');
+    const resetIntervalRadio = row.querySelector('[data-field="resetInterval"] input[type="radio"]:checked');
 
-    // Check if the input fields exist before trying to read their values.
-    if (originalTimeInput && resetIntervalInput) {
-      const originalTimeInMinutes = parseInt(originalTimeInput.value, 10);
-      const resetInterval = parseInt(resetIntervalInput.value, 10);
+    if (originalTimeRadio && resetIntervalRadio) {
+      const originalTimeInMinutes = parseInt(originalTimeRadio.value, 10);
+      const resetInterval = parseInt(resetIntervalRadio.value, 10);
 
       if (!isNaN(originalTimeInMinutes) && !isNaN(resetInterval)) {
         const originalTimeInSeconds = originalTimeInMinutes * 60;

@@ -90,3 +90,38 @@ The change will be implemented by modifying the extension's manifest file.
 ## 4. Expected Outcome
 
 When a user accesses the extension's options, the `options.html` page will open in a new browser tab, utilizing the full window size.
+
+# Feature: Radio Button Input Controls
+
+## 1. Problem
+
+The current time allowed and reset interval inputs in the options page are text/number inputs that are hard to distinguish as interactive elements. Users must manually type values, which can lead to inconsistent input formats and poor user experience.
+
+## 2. Solution
+
+Replace the current number inputs for "Time Allowed" and "Reset Interval" with horizontal radio button groups that provide predefined common values. This will:
+- Make the inputs more visually obvious as interactive elements
+- Standardize input values to common time increments
+- Improve user experience with faster selection
+- Reduce input errors
+
+## 3. Technical Implementation
+
+### Time Allowed Radio Buttons
+- Values: 1 min, 5 min, 10 min, 15 min, 30 min, 1 hr, 2 hr
+- Displayed horizontally in the form
+- Default selection: 5 min
+
+### Reset Interval Radio Buttons  
+- Values: 1 hr, 2 hr, 4 hr, 8 hr, 12 hr, 24 hr
+- Displayed horizontally in the form
+- Default selection: 8 hr
+
+### Files to Modify
+- `options.html`: Update form structure with radio button groups
+- `options.js`: Update form handling logic to read radio button values
+- CSS styling: Add horizontal layout styling for radio button groups
+
+## 4. Expected Outcome
+
+Users will see clearly defined radio button options for time values, making the interface more intuitive and reducing input errors. The horizontal layout will maintain good visual flow in the form.

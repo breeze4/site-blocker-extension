@@ -321,6 +321,7 @@ async function handleTimerForTab(tab) {
   }
 
   if (!tab || !tab.url) {
+    // No tab or URL, so clear any running timer
     return;
   }
 
@@ -353,13 +354,9 @@ async function handleTimerForTab(tab) {
   }
 
   if (domainTimer.timeLeft > 0) {
-    const startTime = Date.now();
     activeTimerIntervalId = setInterval(async () => {
-      const currentTime = Date.now();
-      const elapsedSeconds = Math.floor((currentTime - startTime) / 1000);
-      domainTimers[domain].timeLeft = Math.max(0, domainTimer.timeLeft - elapsedSeconds);
+      domainTimers[domain].timeLeft = Math.max(0, domainTimers[domain].timeLeft - 1);
       await saveDomainTimers(domainTimers);
-
 
       if (domainTimers[domain].timeLeft <= 0) {
         clearInterval(activeTimerIntervalId);
@@ -391,8 +388,36 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   }
 });
 
+// Listen for window focus changes to handle cases where user switches to different browser window
+chrome.windows.onFocusChanged.addListener(async (windowId) => {
+  if (windowId === chrome.windows.WINDOW_ID_NONE) {
+    // Browser lost focus entirely, stop timer
+    if (activeTimerIntervalId) {
+      clearInterval(activeTimerIntervalId);
+      activeTimerIntervalId = null;
+    }
+    await endAllActiveSessions();
+  } else {
+    // Browser gained focus, check current active tab
+    try {
+      const tabs = await chrome.tabs.query({ active: true, windowId: windowId });
+      if (tabs.length > 0) {
+        await handleTimerForTab(tabs[0]);
+      }
+    } catch (error) {
+      // Ignore errors when querying tabs
+    }
+  }
+});
+
 // Listen for when a tab is closed to end any active time tracking sessions
 chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
+  // Stop any running timer when a tab is closed
+  if (activeTimerIntervalId) {
+    clearInterval(activeTimerIntervalId);
+    activeTimerIntervalId = null;
+  }
+  
   // End all active sessions when any tab is closed
   // This ensures sessions don't remain "active" after tab closure
   await endAllActiveSessions();

@@ -31,6 +31,12 @@ When you want very limited access to sites, just enough to view random links you
 
 ## Planned Features
 
+### Streamlined URL Input (Next Feature)
+* Intelligent URL parsing with real-time domain extraction
+* Support for full URLs, partial URLs, and domain names
+* Visual feedback showing what domain will be tracked
+* Smart handling of subdomains and www prefixes
+
 ### Subdomain Support
 * Automatic blocking of subdomains when parent domain is tracked
 * Intelligent domain matching and grouping
@@ -470,8 +476,93 @@ The codebase is now clean, well-documented, and ready for new functionality deve
 ## Next Development Phase
 
 Ready to implement planned features:
+- Streamlined URL input with intelligent domain parsing
 - Subdomain support and intelligent domain matching
 - Enhanced analytics with reporting and goal setting  
 - Advanced blocking features with bypass options
 - Export functionality and data visualization
 - Performance monitoring and optimization tools
+
+---
+
+# Feature: Streamlined URL Input
+
+## Overview
+
+Intelligent URL parsing input that accepts any URL format and automatically extracts the trackable domain with real-time visual feedback.
+
+## User Experience
+
+### Input Examples
+Users can paste any of these formats:
+- **Full URLs**: `https://www.reddit.com/r/programming/posts/123`
+- **Simple URLs**: `reddit.com` or `www.reddit.com`
+- **With protocols**: `http://old.reddit.com`
+- **With paths**: `twitter.com/user/status/456`
+- **Subdomains**: `mail.google.com`, `docs.google.com`
+
+### Visual Feedback
+As the user types, show a preview below the input:
+```
+Input: https://www.reddit.com/r/programming
+Preview: ✓ Will track: reddit.com
+```
+
+### Intelligent Processing
+- **www prefix**: Automatically stripped to get base domain
+- **Subdomains**: Extracts base domain (e.g., `mail.google.com` → `google.com`)
+- **Invalid URLs**: Shows helpful error messages  
+- **Duplicates**: Warns if domain is already tracked
+- **Edge cases**: Handles IP addresses, localhost, malformed URLs
+
+## Features
+
+### Real-time Preview
+Shows parsed domain and validation status as user types:
+```
+Input: https://www.reddit.com/r/programming
+Preview: ✓ Will track: reddit.com
+```
+
+### Visual Feedback States
+- **✓ Success**: Valid URL with extracted domain shown
+- **⚠️ Warning**: Domain already tracked
+- **❌ Error**: Invalid URL with helpful message
+- **Placeholder**: Helpful examples when empty
+
+### Smart Domain Extraction
+- Removes protocols, paths, and query parameters
+- Strips www prefixes automatically
+- Extracts base domain from subdomains
+- Handles international domains and special TLDs
+
+### Enhanced User Flow
+1. **Paste URL**: Copy any URL from browser address bar
+2. **See Preview**: Instantly see what domain will be tracked
+3. **Add Domain**: One-click addition with time limit selection
+
+## Future Enhancements
+
+### Smart Suggestions
+For common services, suggest tracking the base domain:
+- `mail.google.com` → Suggest tracking `google.com` (includes all Google services)
+- `docs.google.com` → Same suggestion with explanation
+
+### Bulk Processing
+Support pasting multiple URLs:
+- Paste newline-separated URLs
+- Show preview for each domain
+- Batch add with confirmation
+
+### Browser Integration
+- Detect recently visited domains
+- Suggest adding frequently visited untracked sites
+- One-click "Add Current Site" button
+
+## Benefits
+
+- **Zero Friction**: Copy-paste workflow from browser to extension
+- **Error Prevention**: Automatic parsing eliminates manual mistakes  
+- **Clear Intent**: Users see exactly what will be tracked
+- **Faster Adoption**: Lower barrier to adding new domains
+- **Better UX**: Modern, intuitive interface with instant feedback

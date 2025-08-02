@@ -2,6 +2,8 @@
 
 Consult SPEC.md before beginning any plan. If the new thing needing to be planned is not in the spec, once you've thought of it, add it to the spec. Integrate it in the right section. Do not reformat other parts of the spec. Treat it as additive. If it needs to be reorganized I will do th at.
 
+When creating the spec/plan, do not be putting code into the spec. Use psuedocode if needed for key algorithms, but mostly if its just routine stuff do not put code in the spec.
+
 
 You will need to create plans for specs, and then checklists of tasks. The tasks have a specific way to think about each item on the checklist:
 

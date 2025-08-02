@@ -14,13 +14,9 @@ function parseURL(input) {
     const urlObj = new URL(url);
     let hostname = urlObj.hostname;
     
-    // Remove www prefix
-    if (hostname.startsWith('www.')) {
-      hostname = hostname.substring(4);
-    }
-    
-    // Extract base domain (handle subdomains)
-    const domain = extractBaseDomain(hostname);
+    // Keep the full hostname to match background.js behavior
+    // Don't remove www prefix or extract base domain - keep subdomains separate
+    const domain = hostname;
     
     return {
       success: true,
@@ -602,6 +598,7 @@ document.getElementById('domainListBody').addEventListener('click', async (event
             // Also update timeLeft if the originalTime is changed, to avoid confusion.
             domainTimers[domainToSave].timeLeft = originalTimeInSeconds;
             domainTimers[domainToSave].resetInterval = resetInterval;
+            domainTimers[domainToSave].lastResetTimestamp = Date.now();
           }
           
           await StorageUtils.setToStorage({ domainTimers });

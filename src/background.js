@@ -312,7 +312,8 @@ async function handleTimerForTab(tab) {
   }
 
   const url = new URL(tab.url);
-  const domain = url.hostname;
+  const rawDomain = url.hostname;
+  const domain = rawDomain; // Keep the full hostname to match storage keys exactly
   debugLog('Processing domain:', domain);
 
   let domainTimers = await getDomainTimers();
@@ -365,7 +366,24 @@ async function handleTimerForTab(tab) {
         }
         clearInterval(activeTimerIntervalId);
         activeTimerIntervalId = null;
-        // Block navigation on the next attempt.
+        
+        // Redirect the current active tab to new tab page when timer expires
+        try {
+          const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (tabs.length > 0) {
+            const activeTab = tabs[0];
+            const activeUrl = new URL(activeTab.url);
+            const activeDomain = activeUrl.hostname;
+            
+            // Only redirect if the active tab is on the expired domain
+            if (activeDomain === domain) {
+              chrome.tabs.update(activeTab.id, { url: "chrome://newtab" });
+              debugLog('Redirected expired tab for domain:', domain);
+            }
+          }
+        } catch (error) {
+          debugLog('Error redirecting expired tab:', error);
+        }
       }
     }, 1000);
   } else {

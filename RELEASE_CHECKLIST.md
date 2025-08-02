@@ -8,10 +8,10 @@ Of course. Here is the checklist in a Markdown-compatible format.
 
 - [x] **`manifest.json` is V3 Compliant**: Ensure your manifest file is using `"manifest_version": 3`. Manifest V2 extensions are no longer accepted.
 - [x] **Required Fields**: Your `manifest.json` must include `manifest_version`, `name`, and `version`. The name should be short and clear (max 45 characters).
-- [ ] **Permissions**: Request only the permissions your extension absolutely needs. Use `activeTab` instead of broad host permissions (e.g., `<all_urls>`) whenever possible. Clearly explain why you need each permission in your store listing.
+- [x] **Permissions**: Request only the permissions your extension absolutely needs. Use `activeTab` instead of broad host permissions (e.g., `<all_urls>`) whenever possible. Clearly explain why you need each permission in your store listing.
 - [x] **Service Worker**: Replace background scripts with a service worker (`"background": { "service_worker": "..." }`). Ensure your logic is event-based and doesn't rely on a persistent state.
-- [ ] **Content Scripts**: Define `matches` precisely to inject scripts only on necessary pages. Use `"run_at": "document_idle"` unless you need scripts to run earlier.
-- [ ] **Icons**: Provide icons in all required sizes: 16x16, 32x32, 48x48, and 128x128 pixels. The 128px icon is used for the Chrome Web Store listing.
+- [x] **Content Scripts**: Define `matches` precisely to inject scripts only on necessary pages. Use `"run_at": "document_idle"` unless you need scripts to run earlier.
+- [x] **Icons**: Provide icons in all required sizes: 16x16, 32x32, 48x48, and 128x128 pixels. The 128px icon is used for the Chrome Web Store listing.
 
 ### 💻 Code Quality & Performance
 
@@ -23,18 +23,18 @@ Of course. Here is the checklist in a Markdown-compatible format.
 
 ### 🛡️ Security
 
-- [ ] **Content Security Policy (CSP)**: Define a strict `content_security_policy` in your `manifest.json`. Avoid using `unsafe-inline` or `unsafe-eval`. Load all scripts and resources locally from within the extension package.
+- [x] **Content Security Policy (CSP)**: Define a strict `content_security_policy` in your `manifest.json`. Avoid using `unsafe-inline` or `unsafe-eval`. Load all scripts and resources locally from within the extension package.
 - [x] **No `eval()`**: Do not use `eval()`, `new Function()`, or `setTimeout()` with a string argument. These can create vulnerabilities.
-- [ ] **Sanitize Inputs**: Sanitize all user input and data fetched from external sources to prevent Cross-Site Scripting (XSS) attacks. Use libraries like DOMPurify if you need to render external HTML.
+- [x] **Sanitize Inputs**: Sanitize all user input and data fetched from external sources to prevent Cross-Site Scripting (XSS) attacks. Use libraries like DOMPurify if you need to render external HTML.
 - [x] **External Requests**: If fetching from an external server, ensure the server uses HTTPS. Explicitly list the domains in the `host_permissions` field in your manifest.
 
 ### ✨ User Interface & Experience
 
 - [x] **Intuitive UI**: Ensure the popup UI (if any) is simple, clean, and easy to understand.
-- [ ] **Onboarding**: Provide a simple onboarding experience for first-time users. This can be a welcome page (using `chrome.runtime.onInstalled`) or a brief tutorial.
+- [x] **Onboarding**: Provide a simple onboarding experience for first-time users. This can be a welcome page (using `chrome.runtime.onInstalled`) or a brief tutorial.
 - [x] **Options Page**: If your extension is configurable, create a user-friendly options page.
-- [ ] **Dark Mode Support**: Add CSS rules to support both light and dark modes using the `prefers-color-scheme` media query.
-- [ ] **Accessibility (a11y)**: Use proper semantic HTML, add ARIA attributes where necessary, and ensure your extension is navigable using only a keyboard.
+- [x] **Dark Mode Support**: Add CSS rules to support both light and dark modes using the `prefers-color-scheme` media query.
+- [x] **Accessibility (a11y)**: Use proper semantic HTML, add ARIA attributes where necessary, and ensure your extension is navigable using only a keyboard.
 
 ### 🚀 Chrome Web Store Listing & Pre-Launch
 

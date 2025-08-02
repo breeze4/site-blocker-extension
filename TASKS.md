@@ -8,39 +8,39 @@ This file tracks all development tasks for the Site Blocker Extension, following
 
 Ready to prepare the extension for Chrome Web Store publication following best practices and security requirements.
 
-#### Phase 1: Critical Security & Compliance ⏸️
-1. **Add Content Security Policy to manifest.json** ⏸️
+#### Phase 1: Critical Security & Compliance ✅
+1. **Add Content Security Policy to manifest.json** ✅
    - Define strict CSP without unsafe-inline or unsafe-eval
    - Ensure all scripts and resources are loaded locally
    - Test CSP compatibility with existing functionality
 
-2. **Create extension icons in all required sizes** ⏸️
+2. **Create extension icons in all required sizes** ✅
    - Design 16x16, 32x32, 48x48, and 128x128 pixel icons
    - Add icons field to manifest.json
    - Ensure consistent branding across all sizes
 
-3. **Review and optimize permissions in manifest.json** ⏸️
+3. **Review and optimize permissions in manifest.json** ✅
    - Justify need for `<all_urls>` permission or find alternatives
    - Review content script matches - consider specific domains vs all_urls
    - Document permission justifications for store listing
 
-4. **Review input sanitization in URL parsing functions** ⏸️
+4. **Review input sanitization in URL parsing functions** ✅
    - Audit parseURL and validation functions for XSS prevention
    - Ensure all user input is properly sanitized
    - Test with malicious input patterns
 
-#### Phase 2: User Experience & Polish ⏸️
-5. **Implement onboarding experience for first-time users** ⏸️
+#### Phase 2: User Experience & Polish ✅
+5. **Implement onboarding experience for first-time users** ✅
    - Add chrome.runtime.onInstalled listener
    - Create welcome/tutorial flow
    - Guide users through initial setup
 
-6. **Add dark mode support to options page** ⏸️
+6. **Add dark mode support to options page** ✅
    - Implement prefers-color-scheme CSS media queries
    - Create dark theme color palette
    - Test in both light and dark system settings
 
-7. **Review accessibility features** ⏸️
+7. **Review accessibility features** ✅
    - Audit semantic HTML structure
    - Add ARIA attributes where needed
    - Test keyboard navigation

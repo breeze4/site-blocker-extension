@@ -398,6 +398,14 @@ chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
   await endAllActiveSessions();
 });
 
+// Handle onboarding for new users
+chrome.runtime.onInstalled.addListener(async (details) => {
+  if (details.reason === 'install') {
+    // First time installation - show onboarding
+    chrome.tabs.create({ url: chrome.runtime.getURL('options.html?onboarding=true') });
+  }
+});
+
 // This function is called when the extension is first initialized.
 async function initialize() {
   const timers = await getDomainTimers();

@@ -278,88 +278,323 @@
       background-color: #ffebee;
       border: 1px solid #ffcdd2;
     }
+    .onboarding-banner {
+      background: linear-gradient(135deg, #e8f5e8 0%, #f0f8f0 100%);
+      border: 2px solid #4CAF50;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 30px;
+      box-shadow: 0 2px 8px rgba(76, 175, 80, 0.1);
+    }
+    .onboarding-banner h2 {
+      margin-top: 0;
+      color: #2e7d32;
+    }
+    .onboarding-banner ol {
+      margin: 15px 0;
+      padding-left: 20px;
+    }
+    .onboarding-banner li {
+      margin: 8px 0;
+    }
+    
+    /* Accessibility utilities */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    
+    /* Focus management */
+    button:focus,
+    input:focus,
+    label:focus {
+      outline: 3px solid #4CAF50;
+      outline-offset: 2px;
+    }
+    
+    /* Fieldset styling */
+    fieldset {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 16px;
+      margin: 16px 0;
+    }
+    
+    legend {
+      font-weight: bold;
+      padding: 0 8px;
+    }
+    
+    .global-actions {
+      margin-top: 20px;
+      display: flex;
+      gap: 10px;
+    }
+    
+    /* Dark mode support */
+    @media (prefers-color-scheme: dark) {
+      body {
+        background-color: #1a1a1a;
+        color: #e0e0e0;
+      }
+      
+      table {
+        background-color: #2d2d2d;
+        color: #e0e0e0;
+      }
+      
+      th {
+        background-color: #3d3d3d;
+        color: #ffffff;
+      }
+      
+      th, td {
+        border-color: #555555;
+      }
+      
+      /* Input and form elements */
+      .url-input {
+        background-color: #2d2d2d;
+        color: #e0e0e0;
+        border-color: #555555;
+      }
+      
+      .url-input:focus {
+        border-color: #66BB6A;
+      }
+      
+      /* Radio buttons dark mode */
+      .radio-option label,
+      .table-radio-option label {
+        background-color: #3d3d3d;
+        color: #e0e0e0;
+        border-color: #555555;
+      }
+      
+      .radio-option label:hover,
+      .table-radio-option label:hover {
+        background-color: #4d4d4d;
+        border-color: #66BB6A;
+      }
+      
+      .radio-option input[type="radio"]:checked + label,
+      .table-radio-option input[type="radio"]:checked + label {
+        background-color: #66BB6A;
+        border-color: #66BB6A;
+        color: #1a1a1a;
+      }
+      
+      /* Buttons dark mode */
+      .primary-button {
+        background-color: #66BB6A;
+        color: #1a1a1a;
+      }
+      
+      .primary-button:hover:not(:disabled) {
+        background-color: #4CAF50;
+      }
+      
+      .secondary-button {
+        background-color: #42A5F5;
+        color: #1a1a1a;
+      }
+      
+      .secondary-button:hover {
+        background-color: #2196F3;
+      }
+      
+      .save-button-inline {
+        background-color: #66BB6A;
+        color: #1a1a1a;
+      }
+      
+      .save-button-inline:hover:not(:disabled) {
+        background-color: #4CAF50;
+      }
+      
+      .delete-button {
+        background-color: #EF5350;
+        color: #1a1a1a;
+      }
+      
+      .delete-button:hover {
+        background-color: #f44336;
+      }
+      
+      .reset-tracking-button {
+        background-color: #FFA726;
+        color: #1a1a1a;
+      }
+      
+      .reset-tracking-button:hover {
+        background-color: #ff9800;
+      }
+      
+      /* Preview states dark mode */
+      .preview-success {
+        background-color: #1B5E20;
+        border-color: #2E7D32;
+        color: #A5D6A7;
+      }
+      
+      .preview-warning {
+        background-color: #E65100;
+        border-color: #F57C00;
+        color: #FFB74D;
+      }
+      
+      .preview-error {
+        background-color: #B71C1C;
+        border-color: #D32F2F;
+        color: #FFCDD2;
+      }
+      
+      .preview-placeholder {
+        color: #999999;
+      }
+      
+      /* Onboarding banner dark mode */
+      .onboarding-banner {
+        background: linear-gradient(135deg, #1B5E20 0%, #2E7D32 100%);
+        border-color: #66BB6A;
+        color: #E8F5E8;
+      }
+      
+      .onboarding-banner h2 {
+        color: #A5D6A7;
+      }
+      
+      /* Dark mode fieldset */
+      fieldset {
+        border-color: #555555;
+      }
+      
+      legend {
+        color: #e0e0e0;
+      }
+      
+      /* Dark mode focus */
+      button:focus,
+      input:focus,
+      label:focus {
+        outline-color: #66BB6A;
+      }
+    }
   </style>
 </head>
 
 <body>
-  <h2>Global Settings</h2>
-  <div>
-    <label>Reset Interval (applies to all sites):</label>
-    <div class="radio-group" id="globalResetIntervalGroup">
-      <div class="radio-option">
-        <input type="radio" id="globalReset1" name="globalResetInterval" value="1">
-        <label for="globalReset1">1 hr</label>
-      </div>
-      <div class="radio-option">
-        <input type="radio" id="globalReset8" name="globalResetInterval" value="8">
-        <label for="globalReset8">8 hr</label>
-      </div>
-      <div class="radio-option">
-        <input type="radio" id="globalReset24" name="globalResetInterval" value="24" checked>
-        <label for="globalReset24">24 hr</label>
-      </div>
-    </div>
+  <!-- Onboarding welcome message -->
+  <div id="onboarding" style="display: none;" class="onboarding-banner">
+    <h2>🎉 Welcome to Site Timer Blocker!</h2>
+    <p>Get limited access to distracting sites without wasting time. Here's how to get started:</p>
+    <ol>
+      <li><strong>Set your global reset interval</strong> - How often timers reset (default: 24 hours)</li>
+      <li><strong>Add sites to track</strong> - Paste any URL or domain name</li>
+      <li><strong>Choose time limits</strong> - From 1 minute to 1 hour per site</li>
+      <li><strong>Monitor your usage</strong> - View analytics for actual time spent</li>
+    </ol>
+    <p>💡 <strong>Tip:</strong> Start with short time limits (1-5 minutes) and adjust based on your usage patterns!</p>
+    <button id="dismissOnboarding" class="primary-button">Got it, let's start!</button>
   </div>
 
+  <h2>Global Settings</h2>
+  <fieldset>
+    <legend>Reset Interval (applies to all sites)</legend>
+    <div class="radio-group" id="globalResetIntervalGroup" role="radiogroup" aria-labelledby="global-reset-legend">
+      <div class="radio-option">
+        <input type="radio" id="globalReset1" name="globalResetInterval" value="1" aria-describedby="global-reset-help">
+        <label for="globalReset1">1 hour</label>
+      </div>
+      <div class="radio-option">
+        <input type="radio" id="globalReset8" name="globalResetInterval" value="8" aria-describedby="global-reset-help">
+        <label for="globalReset8">8 hours</label>
+      </div>
+      <div class="radio-option">
+        <input type="radio" id="globalReset24" name="globalResetInterval" value="24" checked aria-describedby="global-reset-help">
+        <label for="globalReset24">24 hours</label>
+      </div>
+    </div>
+    <div id="global-reset-help" class="sr-only">Choose how often site timers reset automatically</div>
+  </fieldset>
+
   <h2>Add/Update a Site</h2>
-  <form id="siteForm">
+  <form id="siteForm" role="form" aria-labelledby="add-site-heading">
     <div class="url-input-section">
       <label for="urlInput">Add Site (paste any URL):</label>
-      <input type="text" id="urlInput" placeholder="Paste URL or domain (e.g., https://www.reddit.com/r/programming)" class="url-input" required>
-      <div class="url-preview" id="urlPreview">
+      <input type="text" id="urlInput" placeholder="Paste URL or domain (e.g., https://www.reddit.com/r/programming)" class="url-input" required aria-describedby="url-help urlPreview">
+      <div id="url-help" class="sr-only">Enter any website URL or domain name to add time limits</div>
+      <div class="url-preview" id="urlPreview" role="status" aria-live="polite">
         <!-- Dynamic content based on input -->
       </div>
     </div>
     
-    <div>
-      <label>Time Allowed:</label>
-      <div class="radio-group" id="timeAllowedGroup">
+    <fieldset>
+      <legend>Time Allowed</legend>
+      <div class="radio-group" id="timeAllowedGroup" role="radiogroup" aria-labelledby="time-allowed-legend">
         <div class="radio-option">
-          <input type="radio" id="time1" name="timeAllowed" value="1">
-          <label for="time1">1 min</label>
+          <input type="radio" id="time1" name="timeAllowed" value="1" aria-describedby="time-help">
+          <label for="time1">1 minute</label>
         </div>
         <div class="radio-option">
-          <input type="radio" id="time5" name="timeAllowed" value="5" checked>
-          <label for="time5">5 min</label>
+          <input type="radio" id="time5" name="timeAllowed" value="5" checked aria-describedby="time-help">
+          <label for="time5">5 minutes</label>
         </div>
         <div class="radio-option">
-          <input type="radio" id="time10" name="timeAllowed" value="10">
-          <label for="time10">10 min</label>
+          <input type="radio" id="time10" name="timeAllowed" value="10" aria-describedby="time-help">
+          <label for="time10">10 minutes</label>
         </div>
         <div class="radio-option">
-          <input type="radio" id="time30" name="timeAllowed" value="30">
-          <label for="time30">30 min</label>
+          <input type="radio" id="time30" name="timeAllowed" value="30" aria-describedby="time-help">
+          <label for="time30">30 minutes</label>
         </div>
         <div class="radio-option">
-          <input type="radio" id="time60" name="timeAllowed" value="60">
-          <label for="time60">1 hr</label>
+          <input type="radio" id="time60" name="timeAllowed" value="60" aria-describedby="time-help">
+          <label for="time60">1 hour</label>
         </div>
       </div>
-    </div>
+      <div id="time-help" class="sr-only">Choose how much time you want to allow on this site per reset period</div>
+    </fieldset>
     
-    <button type="submit" class="primary-button">Add/Update Timer</button>
+    <button type="submit" class="primary-button" aria-describedby="submit-help">Add/Update Timer</button>
+    <div id="submit-help" class="sr-only">Add this site to your tracked list with the selected time limit</div>
   </form>
 
   <h2>Tracked Sites</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>Domain</th>
-        <th>Time Allowed</th>
-        <th>Time Left</th>
-        <th>Last 24h</th>
-        <th>Last 7d</th>
-        <th>Last 30d</th>
-        <th>All Time</th>
-        <th>Last Reset</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody id="domainListBody">
-    </tbody>
-  </table>
-  <button type="button" id="resetTimersButton" class="secondary-button">Reset Timers</button>
-  <button type="button" id="resetAllTrackingButton" class="secondary-button">Reset All Tracking</button>
+  <div role="region" aria-labelledby="tracked-sites-heading">
+    <table role="table" aria-label="Tracked websites with time limits and usage analytics">
+      <thead>
+        <tr role="row">
+          <th role="columnheader" scope="col">Domain</th>
+          <th role="columnheader" scope="col">Time Allowed</th>
+          <th role="columnheader" scope="col">Time Left</th>
+          <th role="columnheader" scope="col">Last 24h</th>
+          <th role="columnheader" scope="col">Last 7d</th>
+          <th role="columnheader" scope="col">Last 30d</th>
+          <th role="columnheader" scope="col">All Time</th>
+          <th role="columnheader" scope="col">Last Reset</th>
+          <th role="columnheader" scope="col">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="domainListBody" role="rowgroup">
+      </tbody>
+    </table>
+  </div>
+  
+  <div class="global-actions" role="group" aria-labelledby="global-actions-heading">
+    <h3 id="global-actions-heading" class="sr-only">Global Actions</h3>
+    <button type="button" id="resetTimersButton" class="secondary-button" aria-describedby="reset-timers-help">Reset All Timers</button>
+    <div id="reset-timers-help" class="sr-only">Reset time left for all tracked sites to their original time limits</div>
+    <button type="button" id="resetAllTrackingButton" class="secondary-button" aria-describedby="reset-tracking-help">Reset All Tracking</button>
+    <div id="reset-tracking-help" class="sr-only">Clear all usage analytics data for all tracked sites</div>
+  </div>
 
   <script src="storage-utils.js"></script>
   <script src="options.js"></script>

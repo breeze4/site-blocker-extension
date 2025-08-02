@@ -81,7 +81,10 @@ function parseURLWithValidation(input) {
     };
   }
   
-  const result = parseURL(input);
+  // Basic input sanitization - remove potentially dangerous characters
+  const sanitizedInput = input.trim().replace(/[<>"']/g, '');
+  
+  const result = parseURL(sanitizedInput);
   
   if (!result.success) {
     // Check for common malformed URL issues
@@ -125,6 +128,13 @@ function getBaseDomainForSorting(domain) {
   return extractBaseDomain(domain);
 }
 
+// HTML escape function to prevent XSS
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
 // Check if domain already exists in storage
 async function checkDomainExists(domain) {
   try {
@@ -153,16 +163,16 @@ document.getElementById('urlInput').addEventListener('input', async (event) => {
     
     if (isDuplicate) {
       preview.innerHTML = `
-        <span class="preview-warning">WARNING: ${result.domain} is already tracked</span>
+        <span class="preview-warning">WARNING: ${escapeHtml(result.domain)} is already tracked</span>
       `;
     } else {
       preview.innerHTML = `
-        <span class="preview-success">Will track: <strong>${result.domain}</strong></span>
+        <span class="preview-success">Will track: <strong>${escapeHtml(result.domain)}</strong></span>
       `;
     }
   } else {
     preview.innerHTML = `
-      <span class="preview-error">ERROR: ${result.error}</span>
+      <span class="preview-error">ERROR: ${escapeHtml(result.error)}</span>
     `;
   }
 });
@@ -760,8 +770,32 @@ async function initializeGlobalResetInterval() {
   }
 }
 
+// Handle onboarding flow
+function handleOnboarding() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const isOnboarding = urlParams.get('onboarding') === 'true';
+  
+  if (isOnboarding) {
+    const onboardingDiv = document.getElementById('onboarding');
+    onboardingDiv.style.display = 'block';
+    
+    // Scroll to top to ensure onboarding is visible
+    window.scrollTo(0, 0);
+    
+    // Handle dismiss button
+    document.getElementById('dismissOnboarding').addEventListener('click', () => {
+      onboardingDiv.style.display = 'none';
+      // Remove onboarding parameter from URL
+      const url = new URL(window.location);
+      url.searchParams.delete('onboarding');
+      window.history.replaceState({}, document.title, url.pathname);
+    });
+  }
+}
+
 // Initialize when page loads
 initializeGlobalResetInterval();
+handleOnboarding();
 
 // Render the initial list of domains when the options page is loaded.
 renderDomainList();

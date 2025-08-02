@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create Extension Icons</title>
+</head>
+<body>
+    <h1>Extension Icon Generator</h1>
+    <p>This page generates the required PNG icons for the Chrome extension.</p>
+    
+    <canvas id="canvas16" width="16" height="16" style="border: 1px solid #ccc; margin: 5px;"></canvas>
+    <span>16x16</span><br>
+    
+    <canvas id="canvas32" width="32" height="32" style="border: 1px solid #ccc; margin: 5px;"></canvas>
+    <span>32x32</span><br>
+    
+    <canvas id="canvas48" width="48" height="48" style="border: 1px solid #ccc; margin: 5px;"></canvas>
+    <span>48x48</span><br>
+    
+    <canvas id="canvas128" width="128" height="128" style="border: 1px solid #ccc; margin: 5px;"></canvas>
+    <span>128x128</span><br>
+    
+    <div id="downloads"></div>
+
+    <script>
+        function drawIcon(ctx, size) {
+            const scale = size / 128;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, size, size);
+            
+            // Background circle
+            ctx.fillStyle = '#4CAF50';
+            ctx.strokeStyle = '#2E7D32';
+            ctx.lineWidth = 4 * scale;
+            ctx.beginPath();
+            ctx.arc(size/2, size/2, 56 * scale, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.stroke();
+            
+            // Clock face
+            ctx.fillStyle = 'white';
+            ctx.strokeStyle = '#2E7D32';
+            ctx.lineWidth = 2 * scale;
+            ctx.beginPath();
+            ctx.arc(size/2, size/2, 40 * scale, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.stroke();
+            
+            // Clock marks (simplified for small sizes)
+            if (size >= 32) {
+                ctx.strokeStyle = '#2E7D32';
+                ctx.lineWidth = 2 * scale;
+                ctx.lineCap = 'round';
+                
+                // 12, 3, 6, 9 positions
+                ctx.beginPath();
+                ctx.moveTo(size/2, 28 * scale);
+                ctx.lineTo(size/2, 36 * scale);
+                ctx.moveTo(100 * scale, size/2);
+                ctx.lineTo(92 * scale, size/2);
+                ctx.moveTo(size/2, 100 * scale);
+                ctx.lineTo(size/2, 92 * scale);
+                ctx.moveTo(28 * scale, size/2);
+                ctx.lineTo(36 * scale, size/2);
+                ctx.stroke();
+            }
+            
+            // Clock hands
+            ctx.strokeStyle = '#2E7D32';
+            ctx.lineWidth = 3 * scale;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            // Hour hand pointing to 3
+            ctx.moveTo(size/2, size/2);
+            ctx.lineTo(80 * scale, size/2);
+            // Minute hand pointing to 12
+            ctx.moveTo(size/2, size/2);
+            ctx.lineTo(size/2, 44 * scale);
+            ctx.stroke();
+            
+            // Center dot
+            ctx.fillStyle = '#2E7D32';
+            ctx.beginPath();
+            ctx.arc(size/2, size/2, 4 * scale, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Blocked symbol (X)
+            ctx.strokeStyle = '#F44336';
+            ctx.lineWidth = 6 * scale;
+            ctx.lineCap = 'round';
+            ctx.globalAlpha = 0.8;
+            ctx.beginPath();
+            ctx.moveTo(48 * scale, 48 * scale);
+            ctx.lineTo(80 * scale, 80 * scale);
+            ctx.moveTo(80 * scale, 48 * scale);
+            ctx.lineTo(48 * scale, 80 * scale);
+            ctx.stroke();
+            ctx.globalAlpha = 1.0;
+        }
+        
+        function createIcon(size) {
+            const canvas = document.getElementById(`canvas${size}`);
+            const ctx = canvas.getContext('2d');
+            drawIcon(ctx, size);
+            
+            // Create download link
+            const dataURL = canvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.download = `icon${size}.png`;
+            link.href = dataURL;
+            link.textContent = `Download icon${size}.png`;
+            link.style.display = 'block';
+            link.style.margin = '5px';
+            document.getElementById('downloads').appendChild(link);
+        }
+        
+        // Generate all icons
+        [16, 32, 48, 128].forEach(createIcon);
+    </script>
+</body>
+</html>

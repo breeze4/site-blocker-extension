@@ -4,14 +4,86 @@ This file tracks all development tasks for the Site Blocker Extension, following
 
 ## Active Tasks
 
-*No active tasks at this time. Ready for new functionality development.*
+### 🚀 Chrome Web Store Release Preparation
+
+Ready to prepare the extension for Chrome Web Store publication following best practices and security requirements.
+
+#### Phase 1: Critical Security & Compliance ⏸️
+1. **Add Content Security Policy to manifest.json** ⏸️
+   - Define strict CSP without unsafe-inline or unsafe-eval
+   - Ensure all scripts and resources are loaded locally
+   - Test CSP compatibility with existing functionality
+
+2. **Create extension icons in all required sizes** ⏸️
+   - Design 16x16, 32x32, 48x48, and 128x128 pixel icons
+   - Add icons field to manifest.json
+   - Ensure consistent branding across all sizes
+
+3. **Review and optimize permissions in manifest.json** ⏸️
+   - Justify need for `<all_urls>` permission or find alternatives
+   - Review content script matches - consider specific domains vs all_urls
+   - Document permission justifications for store listing
+
+4. **Review input sanitization in URL parsing functions** ⏸️
+   - Audit parseURL and validation functions for XSS prevention
+   - Ensure all user input is properly sanitized
+   - Test with malicious input patterns
+
+#### Phase 2: User Experience & Polish ⏸️
+5. **Implement onboarding experience for first-time users** ⏸️
+   - Add chrome.runtime.onInstalled listener
+   - Create welcome/tutorial flow
+   - Guide users through initial setup
+
+6. **Add dark mode support to options page** ⏸️
+   - Implement prefers-color-scheme CSS media queries
+   - Create dark theme color palette
+   - Test in both light and dark system settings
+
+7. **Review accessibility features** ⏸️
+   - Audit semantic HTML structure
+   - Add ARIA attributes where needed
+   - Test keyboard navigation
+   - Verify screen reader compatibility
+
+#### Phase 3: Build & Distribution ⏸️
+8. **Set up build process for code minification** ⏸️
+   - Configure minification for JS, CSS, and HTML
+   - Create production build script
+   - Test minified version functionality
+
+9. **Create privacy policy document** ⏸️
+   - Document data collection and usage (timer data, usage analytics)
+   - Explain data storage (local only, no cloud sync)
+   - Create hosted privacy policy page
+   - Add privacy policy link to manifest
+
+10. **Prepare Chrome Web Store listing materials** ⏸️
+    - Write compelling extension description
+    - Create promotional screenshots (1280x800 or 640x400)
+    - Design promotional tile (440x280)
+    - Prepare permission justifications
+
+11. **Package extension for submission** ⏸️
+    - Create clean .zip excluding development files
+    - Verify all required files included
+    - Test fresh installation from package
+    - Final manual testing of all features
+
+#### Phase 4: Store Submission ⏸️
+12. **Submit to Chrome Web Store** ⏸️
+    - Create developer account ($5 fee)
+    - Upload package and complete listing
+    - Submit for review
+    - Monitor review status and respond to feedback
 
 ## Development Status
 
 ✅ **Core Extension**: Fully functional site blocker with timer management  
 ✅ **Time Analytics**: Comprehensive usage tracking with rolling windows  
 ✅ **Smart URL Input**: Intelligent domain parsing with real-time preview  
-🎯 **Next**: Subdomain support and enhanced analytics features
+🚀 **Current**: Chrome Web Store release preparation (12 tasks across 4 phases)  
+🎯 **Next**: Post-launch subdomain support and enhanced analytics features
 
 ---
 

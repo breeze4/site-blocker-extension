@@ -67,3 +67,26 @@ The options page provides a user interface for managing the blocked sites.
 *   **Implementation**:
     *   The page consists of a simple HTML form and a list to display the domains.
     *   JavaScript in `options.js` handles form submission, reading from and writing to `chrome.storage.local`, and rendering the list of domains.
+
+# Feature: Enlarge Options Window
+
+## 1. Problem
+
+The extension's options page currently opens in a small, popup window. This provides a poor user experience, as the content, especially the new table layout, feels cramped and requires scrolling.
+
+## 2. Solution
+
+The options page will be configured to open in a standard, full-sized browser tab. This will provide ample space for the user interface, improving readability and usability.
+
+## 3. Technical Implementation
+
+The change will be implemented by modifying the extension's manifest file.
+
+*   **File:** `manifest.json`
+*   **Key:** `options_ui`
+*   **Property:** `open_in_tab`
+*   **Value Change:** The value of `open_in_tab` will be changed from `false` to `true`.
+
+## 4. Expected Outcome
+
+When a user accesses the extension's options, the `options.html` page will open in a new browser tab, utilizing the full window size.

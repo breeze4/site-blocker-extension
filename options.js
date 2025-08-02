@@ -41,6 +41,16 @@ document.getElementById('siteForm').addEventListener('submit', (event) => {
 
 // This function renders the list of configured domains and their timers into the table.
 function renderDomainList() {
+  // Helper function to convert seconds to a "X min Y sec" format.
+  const formatTime = (totalSeconds) => {
+    if (isNaN(totalSeconds) || totalSeconds < 0) {
+      return 'Invalid time';
+    }
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes} min ${seconds} sec`;
+  };
+
   // Get the domain timers from storage.
   chrome.storage.local.get('domainTimers', (result) => {
     const domainTimers = result.domainTimers || {};
@@ -52,11 +62,11 @@ function renderDomainList() {
     for (const [domain, { originalTime, timeLeft, resetInterval, lastResetTimestamp }] of Object.entries(domainTimers)) {
       const row = document.createElement('tr');
 
-      // Time is displayed in minutes for readability.
+      // Time is displayed in minutes and seconds for readability.
       row.innerHTML = `
         <td>${domain}</td>
         <td class="editable" data-field="originalTime">${Math.floor(originalTime / 60)}</td>
-        <td>${Math.floor(timeLeft / 60)}</td>
+        <td>${formatTime(timeLeft)}</td>
         <td class="editable" data-field="resetInterval">${resetInterval}</td>
         <td>${new Date(lastResetTimestamp).toLocaleString()}</td>
         <td>
@@ -189,3 +199,6 @@ document.getElementById('resetTimersButton').addEventListener('click', (event) =
 
 // Render the initial list of domains when the options page is loaded.
 renderDomainList();
+
+// Set an interval to refresh the list every second to keep the timers updated.
+setInterval(renderDomainList, 1000);

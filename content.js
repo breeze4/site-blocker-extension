@@ -1,6 +1,6 @@
 // This script is injected into every page to check if the domain is blocked.
 
-// Retrieve the domain timers from local storage.
+// Retrieve the domain timers fromthe mio local storage.
 chrome.storage.local.get("domainTimers", (result) => {
   // If there are no timers, default to an empty object.
   const domainTimers = result.domainTimers || {};

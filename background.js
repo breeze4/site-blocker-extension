@@ -155,7 +155,7 @@ async function handleTimerForTab(tab) {
         console.debug(`Time's up for ${domain}. Navigation is blocked.`);
         // Block navigation on the next attempt.
       }
-    }, 3000);
+    }, 1000);
   } else {
     // If time has already expired, block navigation.
     chrome.tabs.update(tab.id, { url: "chrome://newtab" });

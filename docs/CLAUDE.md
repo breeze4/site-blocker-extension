@@ -1,6 +1,16 @@
-## Working instructions
+# Development Workflow Instructions
 
-Consult SPEC.md before beginning any plan. If the new thing needing to be planned is not in the spec, once you've thought of it, add it to the spec. Integrate it in the right section. Do not reformat other parts of the spec. Treat it as additive. If it needs to be reorganized I will do th at.
+## Project Structure
+
+This project uses an organized structure:
+- **`src/`** - Extension source code (load this folder in Chrome)
+- **`docs/`** - All documentation including SPEC.md and TASKS.md
+- **`scripts/`** - Build and distribution tools
+- **`assets/`** - Design files and icon tools
+
+## Working Instructions
+
+Consult `docs/SPEC.md` before beginning any plan. If the new thing needing to be planned is not in the spec, once you've thought of it, add it to the spec. Integrate it in the right section. Do not reformat other parts of the spec. Treat it as additive. If it needs to be reorganized I will do that.
 
 When creating the spec/plan, do not be putting code into the spec. Use psuedocode if needed for key algorithms, but mostly if its just routine stuff do not put code in the spec.
 
@@ -24,6 +34,6 @@ You will need to create plans for specs, and then checklists of tasks. The tasks
 
 When executing and writing code for tasks, make sure to check each item off the list as its done and prior to starting the next task.
 
-Before doing any coding, print out the tasks to be done and then ask if the tasks should be in TASKS.md or if console-only tasks are sufficient. Write the task list first and then ask for confirmation. Ask for confirmation with `y? n?` and if a `y` or `yes` or something meaning "yes" then put tasks into the TASKS.md file. If anything else, just do console-only tasks. Make sure you actually wait for my input before proceeding here!
+Before doing any coding, print out the tasks to be done and then ask if the tasks should be in `docs/TASKS.md` or if console-only tasks are sufficient. Write the task list first and then ask for confirmation. Ask for confirmation with `y? n?` and if a `y` or `yes` or something meaning "yes" then put tasks into the `docs/TASKS.md` file. If anything else, just do console-only tasks. Make sure you actually wait for my input before proceeding here!
 
 For testing, just give me the instructions for what to test. I will do it myself. Do not launch servers or browsers to test. Don't include manual test steps in task lists, ever.

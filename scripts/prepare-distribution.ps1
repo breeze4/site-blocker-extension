@@ -7,47 +7,47 @@ Write-Host "Site Timer Blocker Distribution Prep" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 
-# Create dist directory and subdirectories
+# Create dist directory and subdirectories in project root
 Write-Host "Creating distribution directory structure..." -ForegroundColor Yellow
-if (Test-Path "dist") { Remove-Item "dist" -Recurse -Force }
-New-Item -ItemType Directory -Path "dist" | Out-Null
-New-Item -ItemType Directory -Path "dist\extension" | Out-Null
-New-Item -ItemType Directory -Path "dist\store-assets" | Out-Null
-New-Item -ItemType Directory -Path "dist\docs" | Out-Null
+if (Test-Path "..\dist") { Remove-Item "..\dist" -Recurse -Force }
+New-Item -ItemType Directory -Path "..\dist" | Out-Null
+New-Item -ItemType Directory -Path "..\dist\extension" | Out-Null
+New-Item -ItemType Directory -Path "..\dist\store-assets" | Out-Null
+New-Item -ItemType Directory -Path "..\dist\docs" | Out-Null
 
 Write-Host ""
 Write-Host "Copying extension files..." -ForegroundColor Yellow
 
 # Copy core extension files to dist/extension
-Copy-Item "..\src\manifest.json" "dist\extension\"
-Copy-Item "..\src\background.js" "dist\extension\"
-Copy-Item "..\src\content.js" "dist\extension\"
-Copy-Item "..\src\options.html" "dist\extension\"
-Copy-Item "..\src\options.js" "dist\extension\"
-Copy-Item "..\src\storage-utils.js" "dist\extension\"
-Copy-Item "..\docs\README.md" "dist\extension\"
+Copy-Item "..\src\manifest.json" "..\dist\extension\"
+Copy-Item "..\src\background.js" "..\dist\extension\"
+Copy-Item "..\src\content.js" "..\dist\extension\"
+Copy-Item "..\src\options.html" "..\dist\extension\"
+Copy-Item "..\src\options.js" "..\dist\extension\"
+Copy-Item "..\src\storage-utils.js" "..\dist\extension\"
+Copy-Item "..\docs\README.md" "..\dist\extension\"
 
 # Copy icons directory
 Write-Host "Copying icons..." -ForegroundColor Yellow
-New-Item -ItemType Directory -Path "dist\extension\icons" | Out-Null
-Copy-Item "..\src\icons\*.png" "dist\extension\icons\"
+New-Item -ItemType Directory -Path "..\dist\extension\icons" | Out-Null
+Copy-Item "..\src\icons\*.png" "..\dist\extension\icons\"
 
 # Copy store submission materials
 Write-Host ""
 Write-Host "Copying store submission materials..." -ForegroundColor Yellow
-Copy-Item "..\docs\CHROME_WEB_STORE_SUBMISSION.md" "dist\store-assets\"
-Copy-Item "..\docs\RELEASE_CHECKLIST.md" "dist\store-assets\"
+Copy-Item "..\docs\CHROME_WEB_STORE_SUBMISSION.md" "..\dist\store-assets\"
+Copy-Item "..\docs\RELEASE_CHECKLIST.md" "..\dist\store-assets\"
 
 # Copy design assets
 Write-Host "Copying design assets..." -ForegroundColor Yellow
-New-Item -ItemType Directory -Path "dist\store-assets\design-assets" | Out-Null
-Copy-Item "..\assets\*" "dist\store-assets\design-assets\" -Recurse
+New-Item -ItemType Directory -Path "..\dist\store-assets\design-assets" | Out-Null
+Copy-Item "..\assets\*" "..\dist\store-assets\design-assets\" -Recurse
 
 # Create the extension ZIP package
 Write-Host ""
 Write-Host "Creating extension package..." -ForegroundColor Yellow
-$zipPath = "dist\site-timer-blocker-v1.0.zip"
-Compress-Archive -Path "dist\extension\*" -DestinationPath $zipPath -Force
+$zipPath = "..\dist\site-timer-blocker-v1.0.zip"
+Compress-Archive -Path "..\dist\extension\*" -DestinationPath $zipPath -Force
 
 # Create distribution README
 Write-Host ""
@@ -93,7 +93,7 @@ Good luck with your submission! 🚀
 Package created: $(Get-Date)
 "@
 
-$readme | Out-File "dist\DISTRIBUTION_README.txt" -Encoding UTF8
+$readme | Out-File "..\dist\DISTRIBUTION_README.txt" -Encoding UTF8
 
 # Create screenshot helper script
 $screenshotHelper = @"
@@ -133,7 +133,7 @@ Read-Host
 Invoke-Item "extension"
 "@
 
-$screenshotHelper | Out-File "dist\create-screenshots.ps1" -Encoding UTF8
+$screenshotHelper | Out-File "..\dist\create-screenshots.ps1" -Encoding UTF8
 
 # Show package info
 Write-Host ""
@@ -150,12 +150,12 @@ EXTENSION PACKAGE CONTENTS
 Files included in site-timer-blocker-v1.0.zip:
 "@
 
-Get-ChildItem "dist\extension" -Recurse | ForEach-Object {
-    $relativePath = $_.FullName.Replace((Get-Location).Path + "\dist\extension\", "")
+Get-ChildItem "..\dist\extension" -Recurse | ForEach-Object {
+    $relativePath = $_.FullName.Replace((Get-Location).Path + "\..\dist\extension\", "")
     $manifest += "`n- $relativePath"
 }
 
-$manifest | Out-File "dist\PACKAGE_MANIFEST.txt" -Encoding UTF8
+$manifest | Out-File "..\dist\PACKAGE_MANIFEST.txt" -Encoding UTF8
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
@@ -163,17 +163,17 @@ Write-Host "DISTRIBUTION PACKAGE CREATED!" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "Package location: " -NoNewline
-Write-Host "dist\" -ForegroundColor Cyan
+Write-Host "..\dist\" -ForegroundColor Cyan
 Write-Host "Extension ZIP: " -NoNewline  
-Write-Host "dist\site-timer-blocker-v1.0.zip" -ForegroundColor Cyan
+Write-Host "..\dist\site-timer-blocker-v1.0.zip" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Yellow
-Write-Host "1. Review dist\DISTRIBUTION_README.txt"
-Write-Host "2. Open dist\store-assets\CHROME_WEB_STORE_SUBMISSION.md"
-Write-Host "3. Run dist\create-screenshots.ps1 for screenshot guidance"
+Write-Host "1. Review ..\dist\DISTRIBUTION_README.txt"
+Write-Host "2. Open ..\dist\store-assets\CHROME_WEB_STORE_SUBMISSION.md"
+Write-Host "3. Run ..\dist\create-screenshots.ps1 for screenshot guidance"
 Write-Host ""
 Write-Host "Ready for Chrome Web Store submission! 🚀" -ForegroundColor Green
 Write-Host ""
 Write-Host "Press any key to open distribution folder..."
 Read-Host
-Invoke-Item "dist"
+Invoke-Item "..\dist"

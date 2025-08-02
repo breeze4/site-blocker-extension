@@ -14,14 +14,33 @@
       margin: 5px;
     }
     table {
-      width: 100%;
+      width: auto;
+      max-width: 80%;
       border-collapse: collapse;
       margin-top: 20px;
+      table-layout: fixed;
     }
     th, td {
       border: 1px solid #dddddd;
       text-align: left;
       padding: 8px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    th:nth-child(1), td:nth-child(1) { /* Domain */
+      width: 20%;
+    }
+    th:nth-child(2), td:nth-child(2) { /* Time Allowed */
+      width: 40%;
+    }
+    th:nth-child(3), td:nth-child(3) { /* Time Left */
+      width: 15%;
+    }
+    th:nth-child(4), td:nth-child(4) { /* Last Reset */
+      width: 15%;
+    }
+    th:nth-child(5), td:nth-child(5) { /* Actions */
+      width: 10%;
     }
     th {
       background-color: #f2f2f2;
@@ -108,14 +127,14 @@
       font-weight: bold;
     }
     .radio-cell {
-      min-width: 320px;
       padding: 4px;
       vertical-align: top;
     }
     .radio-cell-content {
       display: flex;
-      flex-direction: column;
-      gap: 8px;
+      flex-direction: row;
+      align-items: center;
+      gap: 12px;
     }
     .save-button-inline {
       background-color: #4CAF50;
@@ -125,8 +144,8 @@
       padding: 6px 12px;
       cursor: pointer;
       font-size: 12px;
-      align-self: flex-start;
       transition: background-color 0.2s ease;
+      white-space: nowrap;
     }
     .save-button-inline:hover:not(:disabled) {
       background-color: #45a049;
@@ -140,6 +159,37 @@
 </head>
 
 <body>
+  <h2>Global Settings</h2>
+  <div>
+    <label>Reset Interval (applies to all sites):</label>
+    <div class="radio-group" id="globalResetIntervalGroup">
+      <div class="radio-option">
+        <input type="radio" id="globalReset1" name="globalResetInterval" value="1">
+        <label for="globalReset1">1 hr</label>
+      </div>
+      <div class="radio-option">
+        <input type="radio" id="globalReset2" name="globalResetInterval" value="2">
+        <label for="globalReset2">2 hr</label>
+      </div>
+      <div class="radio-option">
+        <input type="radio" id="globalReset4" name="globalResetInterval" value="4">
+        <label for="globalReset4">4 hr</label>
+      </div>
+      <div class="radio-option">
+        <input type="radio" id="globalReset8" name="globalResetInterval" value="8">
+        <label for="globalReset8">8 hr</label>
+      </div>
+      <div class="radio-option">
+        <input type="radio" id="globalReset12" name="globalResetInterval" value="12">
+        <label for="globalReset12">12 hr</label>
+      </div>
+      <div class="radio-option">
+        <input type="radio" id="globalReset24" name="globalResetInterval" value="24" checked>
+        <label for="globalReset24">24 hr</label>
+      </div>
+    </div>
+  </div>
+
   <h2>Add/Update a Site</h2>
   <form id="siteForm">
     <input type="text" id="domainInput" placeholder="Enter domain (e.g., example.com)" required>
@@ -178,36 +228,6 @@
       </div>
     </div>
     
-    <div>
-      <label>Reset Interval:</label>
-      <div class="radio-group" id="resetIntervalGroup">
-        <div class="radio-option">
-          <input type="radio" id="reset1" name="resetInterval" value="1">
-          <label for="reset1">1 hr</label>
-        </div>
-        <div class="radio-option">
-          <input type="radio" id="reset2" name="resetInterval" value="2">
-          <label for="reset2">2 hr</label>
-        </div>
-        <div class="radio-option">
-          <input type="radio" id="reset4" name="resetInterval" value="4">
-          <label for="reset4">4 hr</label>
-        </div>
-        <div class="radio-option">
-          <input type="radio" id="reset8" name="resetInterval" value="8" checked>
-          <label for="reset8">8 hr</label>
-        </div>
-        <div class="radio-option">
-          <input type="radio" id="reset12" name="resetInterval" value="12">
-          <label for="reset12">12 hr</label>
-        </div>
-        <div class="radio-option">
-          <input type="radio" id="reset24" name="resetInterval" value="24">
-          <label for="reset24">24 hr</label>
-        </div>
-      </div>
-    </div>
-    
     <button type="submit">Add/Update Timer</button>
   </form>
 
@@ -218,7 +238,6 @@
         <th>Domain</th>
         <th>Time Allowed</th>
         <th>Time Left</th>
-        <th>Reset Interval (hr)</th>
         <th>Last Reset</th>
         <th>Actions</th>
       </tr>

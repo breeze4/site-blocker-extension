@@ -148,3 +148,37 @@ This checklist outlines the steps to improve radio button styling with clickable
   - [x] **5.2.** Verify styling is consistent across different screen sizes
   - [x] **5.3.** Ensure save button integrates well with radio button styling
   - [x] **5.4.** Check that all interactive elements remain accessible
+
+# Task List: Global Reset Interval Cleanup
+
+This checklist outlines the steps to simplify reset interval to a single global 24-hour setting and clean up the UI.
+
+- [x] **1. Add Global Reset Interval Setting**
+  - [x] **1.1.** Add global reset interval radio buttons at top of options page
+  - [x] **1.2.** Set default global reset interval to 24 hours
+  - [x] **1.3.** Style global reset interval with same box design as form radio buttons
+  - [x] **1.4.** Add event listener to save global reset interval changes
+
+- [x] **2. Remove Reset Interval from Table**
+  - [x] **2.1.** Remove reset interval column from table headers
+  - [x] **2.2.** Update table rendering to skip reset interval column creation
+  - [x] **2.3.** Remove reset interval radio buttons from table rows
+  - [x] **2.4.** Update table layout to accommodate removed column
+
+- [x] **3. Update Save Logic for Global Reset Interval**
+  - [x] **3.1.** Modify table save logic to use global reset interval setting
+  - [x] **3.2.** Update form submission to apply global reset interval to new domains
+  - [x] **3.3.** Remove reset interval from individual domain save operations
+  - [x] **3.4.** Ensure global setting applies to all existing domains
+
+- [x] **4. Clean Up CSS and HTML**
+  - [x] **4.1.** Remove unused reset interval CSS from table styling
+  - [x] **4.2.** Update form HTML to remove individual reset interval controls
+  - [x] **4.3.** Clean up JavaScript to remove reset interval table logic
+  - [x] **4.4.** Simplify table structure without reset interval complexity
+
+- [x] **5. Update State Preservation Logic**
+  - [x] **5.1.** Remove reset interval from table state preservation
+  - [x] **5.2.** Add global reset interval to options page state management
+  - [x] **5.3.** Ensure global setting persists across page reloads
+  - [x] **5.4.** Update save button logic to only handle time allowed changes

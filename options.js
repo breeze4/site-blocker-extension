@@ -10,14 +10,14 @@ document.getElementById('siteForm').addEventListener('submit', (event) => {
   
   // Get selected radio button values
   const timeAllowedRadio = document.querySelector('input[name="timeAllowed"]:checked');
-  const resetIntervalRadio = document.querySelector('input[name="resetInterval"]:checked');
+  const globalResetIntervalRadio = document.querySelector('input[name="globalResetInterval"]:checked');
   
   // Time is already in minutes from radio button values and converted to seconds for storage.
   const originalTimeInMinutes = timeAllowedRadio ? parseInt(timeAllowedRadio.value, 10) : null;
-  const resetInterval = resetIntervalRadio ? parseInt(resetIntervalRadio.value, 10) : null;
+  const resetInterval = globalResetIntervalRadio ? parseInt(globalResetIntervalRadio.value, 10) : 24; // Default to 24 hours
 
   // Check if all the required fields have a value.
-  if (domain && originalTimeInMinutes !== null && resetInterval !== null) {
+  if (domain && originalTimeInMinutes !== null) {
     const originalTimeInSeconds = originalTimeInMinutes * 60;
     // Get the current list of domain timers from storage.
     chrome.storage.local.get('domainTimers', (result) => {
@@ -39,7 +39,6 @@ document.getElementById('siteForm').addEventListener('submit', (event) => {
         document.getElementById('domainInput').value = '';
         // Reset radio buttons to default selections
         document.getElementById('time5').checked = true;
-        document.getElementById('reset8').checked = true;
       });
     });
   }
@@ -72,12 +71,10 @@ function renderDomainList() {
       const domain = row.querySelector('.save-button-inline')?.dataset.domain;
       if (domain) {
         const timeRadio = row.querySelector('[data-field="originalTime"] input[type="radio"]:checked');
-        const resetRadio = row.querySelector('[data-field="resetInterval"] input[type="radio"]:checked');
         const saveButton = row.querySelector('.save-button-inline');
         
         currentSelections[domain] = {
-          timeValue: timeRadio ? timeRadio.value : null,
-          resetValue: resetRadio ? resetRadio.value : null
+          timeValue: timeRadio ? timeRadio.value : null
         };
         
         saveButtonStates[domain] = saveButton ? !saveButton.disabled : false;
@@ -162,55 +159,6 @@ function renderDomainList() {
       const timeLeftCell = document.createElement('td');
       timeLeftCell.textContent = formatTime(timeLeft);
       
-      // Reset Interval cell with radio buttons
-      const resetIntervalCell = document.createElement('td');
-      resetIntervalCell.className = 'radio-cell';
-      resetIntervalCell.setAttribute('data-field', 'resetInterval');
-      
-      const resetRadioGroup = document.createElement('div');
-      resetRadioGroup.className = 'table-radio-group';
-      const resetRadioName = `reset_${domain}_${Date.now()}`;
-      const intervalOptions = [1, 2, 4, 8, 12, 24];
-      
-      // Determine which option should be selected
-      let selectedResetOption;
-      if (currentSelections[domain] && currentSelections[domain].resetValue) {
-        // Use preserved selection if available
-        selectedResetOption = parseInt(currentSelections[domain].resetValue);
-      } else {
-        // Find closest option to stored value
-        selectedResetOption = intervalOptions[0];
-        let closestResetDiff = Math.abs(resetInterval - selectedResetOption);
-        intervalOptions.forEach(hours => {
-          const diff = Math.abs(resetInterval - hours);
-          if (diff < closestResetDiff) {
-            closestResetDiff = diff;
-            selectedResetOption = hours;
-          }
-        });
-      }
-      
-      intervalOptions.forEach(hours => {
-        const radioOption = document.createElement('div');
-        radioOption.className = 'table-radio-option';
-        
-        const radio = document.createElement('input');
-        radio.type = 'radio';
-        radio.name = resetRadioName;
-        radio.value = hours;
-        radio.id = `${resetRadioName}_${hours}`;
-        if (hours === selectedResetOption) radio.checked = true;
-        
-        const label = document.createElement('label');
-        label.htmlFor = radio.id;
-        label.textContent = `${hours} hr`;
-        
-        radioOption.appendChild(radio);
-        radioOption.appendChild(label);
-        resetRadioGroup.appendChild(radioOption);
-      });
-      
-      resetIntervalCell.appendChild(resetRadioGroup);
       
       // Last Reset cell
       const lastResetCell = document.createElement('td');
@@ -226,7 +174,6 @@ function renderDomainList() {
       row.appendChild(domainCell);
       row.appendChild(timeAllowedCell);
       row.appendChild(timeLeftCell);
-      row.appendChild(resetIntervalCell);
       row.appendChild(lastResetCell);
       row.appendChild(actionsCell);
       
@@ -237,10 +184,6 @@ function renderDomainList() {
       
       // Add change event listeners to radio buttons
       timeRadioGroup.addEventListener('change', () => {
-        saveButton.disabled = false;
-      });
-      
-      resetRadioGroup.addEventListener('change', () => {
         saveButton.disabled = false;
       });
 
@@ -263,11 +206,11 @@ document.getElementById('domainListBody').addEventListener('click', (event) => {
     
     // Get values from always-visible radio buttons
     const originalTimeRadio = row.querySelector('[data-field="originalTime"] input[type="radio"]:checked');
-    const resetIntervalRadio = row.querySelector('[data-field="resetInterval"] input[type="radio"]:checked');
+    const globalResetIntervalRadio = document.querySelector('input[name="globalResetInterval"]:checked');
 
-    if (originalTimeRadio && resetIntervalRadio) {
+    if (originalTimeRadio) {
       const originalTimeInMinutes = parseInt(originalTimeRadio.value, 10);
-      const resetInterval = parseInt(resetIntervalRadio.value, 10);
+      const resetInterval = globalResetIntervalRadio ? parseInt(globalResetIntervalRadio.value, 10) : 24;
 
       if (!isNaN(originalTimeInMinutes) && !isNaN(resetInterval)) {
         const originalTimeInSeconds = originalTimeInMinutes * 60;
@@ -281,6 +224,9 @@ document.getElementById('domainListBody').addEventListener('click', (event) => {
             domainTimers[domainToSave].resetInterval = resetInterval;
           }
           chrome.storage.local.set({ domainTimers }, () => {
+            // Disable the save button after successful save
+            const saveButton = target;
+            saveButton.disabled = true;
             renderDomainList();
           });
         });
@@ -338,8 +284,84 @@ document.getElementById('resetTimersButton').addEventListener('click', (event) =
 
 });
 
+// Add event listener for global reset interval changes
+document.getElementById('globalResetIntervalGroup').addEventListener('change', () => {
+  const globalResetIntervalRadio = document.querySelector('input[name="globalResetInterval"]:checked');
+  if (globalResetIntervalRadio) {
+    const newResetInterval = parseInt(globalResetIntervalRadio.value, 10);
+    
+    // Update all existing domains with the new reset interval
+    chrome.storage.local.get('domainTimers', (result) => {
+      const domainTimers = result.domainTimers || {};
+      
+      // Update reset interval for all domains
+      for (const domain in domainTimers) {
+        domainTimers[domain].resetInterval = newResetInterval;
+      }
+      
+      chrome.storage.local.set({ domainTimers }, () => {
+        renderDomainList();
+      });
+    });
+  }
+});
+
+// Load and set the current global reset interval when page loads
+chrome.storage.local.get('domainTimers', (result) => {
+  const domainTimers = result.domainTimers || {};
+  const domains = Object.keys(domainTimers);
+  
+  if (domains.length > 0) {
+    // Use the reset interval from the first domain (they should all be the same now)
+    const currentResetInterval = domainTimers[domains[0]].resetInterval || 24;
+    const radioToSelect = document.getElementById(`globalReset${currentResetInterval}`);
+    if (radioToSelect) {
+      radioToSelect.checked = true;
+    }
+  }
+});
+
 // Render the initial list of domains when the options page is loaded.
 renderDomainList();
 
-// Set an interval to refresh the list every second to keep the timers updated.
-setInterval(renderDomainList, 1000);
+// Function to update only time left and last reset columns without full re-render
+function updateTimeDisplays() {
+  const formatTime = (totalSeconds) => {
+    if (isNaN(totalSeconds) || totalSeconds < 0) {
+      return 'Invalid time';
+    }
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes} min ${seconds} sec`;
+  };
+
+  chrome.storage.local.get('domainTimers', (result) => {
+    const domainTimers = result.domainTimers || {};
+    const domainListBody = document.getElementById('domainListBody');
+    const rows = domainListBody.querySelectorAll('tr');
+    
+    rows.forEach(row => {
+      const saveButton = row.querySelector('.save-button-inline');
+      const domain = saveButton?.dataset.domain;
+      
+      if (domain && domainTimers[domain]) {
+        const { timeLeft, lastResetTimestamp } = domainTimers[domain];
+        
+        // Update time left (3rd column)
+        const timeLeftCell = row.cells[2];
+        if (timeLeftCell) {
+          timeLeftCell.textContent = formatTime(timeLeft);
+        }
+        
+        // Update last reset (4th column)
+        const lastResetCell = row.cells[3];
+        if (lastResetCell) {
+          lastResetCell.textContent = new Date(lastResetTimestamp).toLocaleString();
+        }
+      }
+    });
+  });
+}
+
+// Set an interval to update only time displays every second
+setInterval(updateTimeDisplays, 1000);

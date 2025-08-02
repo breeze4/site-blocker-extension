@@ -5,37 +5,37 @@ let defaultDomainTimers = {
   'www.reddit.com': {
     originalTime: 60,
     timeLeft: 60,
-    resetInterval: 8,
+    resetInterval: 24,
     lastResetTimestamp: Date.now()
   },
   'old.reddit.com': {
     originalTime: 60,
     timeLeft: 60,
-    resetInterval: 8,
+    resetInterval: 24,
     lastResetTimestamp: Date.now()
   },
   'twitter.com': {
     originalTime: 60,
     timeLeft: 60,
-    resetInterval: 8,
+    resetInterval: 24,
     lastResetTimestamp: Date.now()
   },
   'x.com': {
     originalTime: 60,
     timeLeft: 60,
-    resetInterval: 8,
+    resetInterval: 24,
     lastResetTimestamp: Date.now()
   },
   'instagram.com': {
     originalTime: 60,
     timeLeft: 60,
-    resetInterval: 8,
+    resetInterval: 24,
     lastResetTimestamp: Date.now()
   },
   'www.instagram.com': {
     originalTime: 60,
     timeLeft: 60,
-    resetInterval: 8,
+    resetInterval: 24,
     lastResetTimestamp: Date.now()
   },
 };
@@ -86,6 +86,18 @@ async function getDomainTimers() {
   return null;
 }
 
+// Asynchronously retrieves the time tracking data from storage. This function serves as a single point of access to the stored time tracking.
+async function getTimeTracking() {
+  try {
+    const timeTracking = await getFromStorage("timeTracking");
+    console.debug("Time Tracking:", timeTracking);
+    return timeTracking;
+  } catch (error) {
+    console.error("Error retrieving timeTracking:", error);
+  }
+  return null;
+}
+
 // Asynchronously saves the domain timers to storage. This function is used whenever the timers are updated.
 async function saveDomainTimers(domainTimers) {
   try {
@@ -93,6 +105,41 @@ async function saveDomainTimers(domainTimers) {
     console.debug("Domain timers saved successfully.", domainTimers);
   } catch (error) {
     console.error("Error saving domain timers:", error);
+  }
+}
+
+// Asynchronously saves the time tracking data to storage. This function is used whenever the time tracking is updated.
+async function saveTimeTracking(timeTracking) {
+  try {
+    await setToStorage({ timeTracking });
+    console.debug("Time tracking saved successfully.", timeTracking);
+  } catch (error) {
+    console.error("Error saving time tracking:", error);
+  }
+}
+
+// Initialize time tracking data structure for a domain if it doesn't exist
+async function initializeDomainTimeTracking(domain) {
+  try {
+    const timeTracking = await getTimeTracking() || {};
+    
+    // Only initialize if domain doesn't already exist
+    if (!timeTracking[domain]) {
+      const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+      timeTracking[domain] = {
+        dailyTotals: {},
+        allTimeTotal: 0,
+        trackingStartDate: currentDate,
+        lastResetDate: currentDate,
+        currentSessionStart: null,
+        lastActiveTimestamp: Date.now()
+      };
+      
+      await saveTimeTracking(timeTracking);
+      console.debug(`Initialized time tracking for domain: ${domain}`);
+    }
+  } catch (error) {
+    console.error(`Error initializing time tracking for domain ${domain}:`, error);
   }
 }
 
@@ -112,8 +159,183 @@ async function resetTimersIfNeeded(domainTimers) {
   return domainTimers;
 }
 
+// Calculate time spent for a domain over a specific period (rolling window)
+async function calculateTimeSpent(domain, period) {
+  try {
+    const timeTracking = await getTimeTracking() || {};
+    const domainData = timeTracking[domain];
+    
+    if (!domainData) {
+      return 0;
+    }
+    
+    // Handle all-time period
+    if (period === 'alltime') {
+      return domainData.allTimeTotal || 0;
+    }
+    
+    // Calculate rolling window periods
+    const now = new Date();
+    const currentDate = now.toISOString().split('T')[0]; // YYYY-MM-DD format
+    let totalSeconds = 0;
+    
+    // Add current session time if there's an active session
+    if (domainData.currentSessionStart) {
+      const currentSessionTime = Math.floor((Date.now() - domainData.currentSessionStart) / 1000);
+      totalSeconds += currentSessionTime;
+    }
+    
+    // Determine date range based on period
+    let daysToCheck = 0;
+    switch (period) {
+      case '24h':
+        daysToCheck = 1;
+        break;
+      case '7d':
+        daysToCheck = 7;
+        break;
+      case '30d':
+        daysToCheck = 30;
+        break;
+      default:
+        console.error(`Unknown period: ${period}`);
+        return 0;
+    }
+    
+    // Sum up daily totals for the specified period
+    for (let i = 0; i < daysToCheck; i++) {
+      const date = new Date(now);
+      date.setDate(date.getDate() - i);
+      const dateString = date.toISOString().split('T')[0];
+      
+      if (domainData.dailyTotals && domainData.dailyTotals[dateString]) {
+        totalSeconds += domainData.dailyTotals[dateString];
+      }
+    }
+    
+    return totalSeconds;
+  } catch (error) {
+    console.error(`Error calculating time spent for ${domain} over ${period}:`, error);
+    return 0;
+  }
+}
+
+// Clean up daily tracking data older than 30 days to keep storage efficient
+async function cleanupOldTimeTrackingData() {
+  try {
+    const timeTracking = await getTimeTracking() || {};
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const cutoffDate = thirtyDaysAgo.toISOString().split('T')[0]; // YYYY-MM-DD format
+    
+    let dataChanged = false;
+    
+    for (const [domain, data] of Object.entries(timeTracking)) {
+      if (data.dailyTotals) {
+        const originalCount = Object.keys(data.dailyTotals).length;
+        
+        // Remove daily entries older than 30 days
+        for (const dateString of Object.keys(data.dailyTotals)) {
+          if (dateString < cutoffDate) {
+            delete data.dailyTotals[dateString];
+            dataChanged = true;
+          }
+        }
+        
+        const newCount = Object.keys(data.dailyTotals).length;
+        if (originalCount !== newCount) {
+          console.debug(`Cleaned up ${originalCount - newCount} old daily entries for ${domain}`);
+        }
+      }
+    }
+    
+    if (dataChanged) {
+      await saveTimeTracking(timeTracking);
+      console.debug('Completed cleanup of old time tracking data');
+    }
+  } catch (error) {
+    console.error('Error cleaning up old time tracking data:', error);
+  }
+}
+
+// End idle sessions (sessions that have been inactive for more than 2 minutes)
+async function endIdleSessions() {
+  try {
+    const timeTracking = await getTimeTracking() || {};
+    const currentTime = Date.now();
+    const IDLE_TIMEOUT = 2 * 60 * 1000; // 2 minutes in milliseconds
+    const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    
+    for (const [domain, data] of Object.entries(timeTracking)) {
+      if (data.currentSessionStart && data.lastActiveTimestamp) {
+        const timeSinceLastActive = currentTime - data.lastActiveTimestamp;
+        
+        if (timeSinceLastActive >= IDLE_TIMEOUT) {
+          // Calculate session duration up to the idle point
+          const sessionDuration = Math.floor((data.lastActiveTimestamp - data.currentSessionStart) / 1000);
+          console.debug(`Ending idle session for ${domain}, duration: ${sessionDuration} seconds`);
+          
+          // Save session duration to daily totals
+          if (!data.dailyTotals) {
+            data.dailyTotals = {};
+          }
+          data.dailyTotals[currentDate] = (data.dailyTotals[currentDate] || 0) + sessionDuration;
+          
+          // Update all-time total
+          data.allTimeTotal = (data.allTimeTotal || 0) + sessionDuration;
+          
+          // Clear the active session
+          data.currentSessionStart = null;
+          
+          console.debug(`Ended idle session for ${domain} on ${currentDate}: ${sessionDuration} seconds added`);
+        }
+      }
+    }
+    await saveTimeTracking(timeTracking);
+  } catch (error) {
+    console.error('Error ending idle sessions:', error);
+  }
+}
+
+// End any active time tracking session for all domains
+async function endAllActiveSessions() {
+  try {
+    const timeTracking = await getTimeTracking() || {};
+    const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    
+    for (const [domain, data] of Object.entries(timeTracking)) {
+      if (data.currentSessionStart) {
+        // Calculate session duration
+        const sessionDuration = Math.floor((Date.now() - data.currentSessionStart) / 1000);
+        console.debug(`Ending session for ${domain}, duration: ${sessionDuration} seconds`);
+        
+        // Save session duration to daily totals
+        if (!data.dailyTotals) {
+          data.dailyTotals = {};
+        }
+        data.dailyTotals[currentDate] = (data.dailyTotals[currentDate] || 0) + sessionDuration;
+        
+        // Update all-time total
+        data.allTimeTotal = (data.allTimeTotal || 0) + sessionDuration;
+        
+        // Clear the active session
+        data.currentSessionStart = null;
+        data.lastActiveTimestamp = Date.now();
+        
+        console.debug(`Updated daily total for ${domain} on ${currentDate}: ${data.dailyTotals[currentDate]} seconds`);
+      }
+    }
+    await saveTimeTracking(timeTracking);
+  } catch (error) {
+    console.error('Error ending active sessions:', error);
+  }
+}
+
 // This function contains the core logic for starting and stopping timers based on the active tab.
 async function handleTimerForTab(tab) {
+  // End any active time tracking sessions before starting new one
+  await endAllActiveSessions();
+  
   // Always clear the previous timer before starting a new one.
   if (activeTimerIntervalId) {
     clearInterval(activeTimerIntervalId);
@@ -141,6 +363,18 @@ async function handleTimerForTab(tab) {
   if (!domainTimer) {
     console.debug(`Not a domain being tracked: ${domain}`);
     return;
+  }
+
+  // Initialize time tracking for this domain and start session
+  await initializeDomainTimeTracking(domain);
+  
+  // Record session start timestamp for time tracking
+  const timeTracking = await getTimeTracking() || {};
+  if (timeTracking[domain]) {
+    timeTracking[domain].currentSessionStart = Date.now();
+    timeTracking[domain].lastActiveTimestamp = Date.now();
+    await saveTimeTracking(timeTracking);
+    console.debug(`Started time tracking session for domain: ${domain}`);
   }
 
   if (domainTimer.timeLeft > 0) {
@@ -186,12 +420,32 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   }
 });
 
+// Listen for when a tab is closed to end any active time tracking sessions
+chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
+  // End all active sessions when any tab is closed
+  // This ensures sessions don't remain "active" after tab closure
+  await endAllActiveSessions();
+  console.debug(`Tab ${tabId} closed, ended all active time tracking sessions`);
+});
+
 // This function is called when the extension is first initialized.
 async function initialize() {
   const timers = await getDomainTimers();
   if (!timers) {
     await setToStorage({ domainTimers: defaultDomainTimers });
   }
+  
+  // Initialize time tracking storage if it doesn't exist
+  const timeTracking = await getFromStorage("timeTracking");
+  if (!timeTracking) {
+    await setToStorage({ timeTracking: {} });
+  }
+  
+  // Clean up old time tracking data on startup
+  await cleanupOldTimeTrackingData();
+  
+  // Set up idle detection - check every 30 seconds for sessions idle longer than 2 minutes
+  setInterval(endIdleSessions, 30 * 1000);
 }
 
 // This starts the extension.

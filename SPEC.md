@@ -114,12 +114,12 @@ Implemented a comprehensive box-style radio button system with:
 
 ### Global Reset Interval Setting
 - Single setting at top of options page that applies to all sites
-- Values: 1 hr, 2 hr, 4 hr, 8 hr, 12 hr, 24 hr
+- Values: 1 hr, 8 hr, 24 hr
 - Default selection: 24 hr
 - Automatically updates all existing domains when changed
 
 ### Form Radio Buttons
-- Time Allowed values: 1 min, 5 min, 10 min, 15 min, 30 min, 1 hr, 2 hr
+- Time Allowed values: 1 min, 5 min, 10 min, 30 min, 1 hr
 - Box-style design with green selection states
 - Default selection: 5 min
 
@@ -351,3 +351,120 @@ Users will have comprehensive visibility into their actual time usage patterns:
 - **Flexible Reset**: Start fresh when needed without losing timer configurations
 
 The feature will integrate seamlessly with existing timer functionality while providing valuable analytics for informed digital wellness decisions.
+
+# Chrome Storage Data Models
+
+This section documents all data structures stored in `chrome.storage.local` by the extension.
+
+## Storage Buckets Overview
+
+The extension uses two primary storage buckets:
+- **`domainTimers`**: Core timer functionality and configurations
+- **`timeTracking`**: Analytics data for actual time spent on domains
+
+## 1. domainTimers
+
+Primary storage for timer configurations and current state. This bucket contains the core functionality of the site blocker.
+
+### Data Structure
+```javascript
+domainTimers: {
+  'example.com': {
+    originalTime: 300,              // number (seconds) - original time limit set by user
+    timeLeft: 180,                  // number (seconds) - remaining time for current period
+    resetInterval: 24,              // number (hours) - how often timer resets (1, 8, 24)
+    lastResetTimestamp: 1691856000000  // number (milliseconds) - when timer was last reset
+  },
+  'another-site.com': {
+    originalTime: 600,
+    timeLeft: 450,
+    resetInterval: 24,
+    lastResetTimestamp: 1691856000000
+  }
+  // ... additional domains
+}
+```
+
+### Field Descriptions
+- **`originalTime`**: The time limit (in seconds) that the user set for this domain. When timers reset, `timeLeft` is restored to this value.
+- **`timeLeft`**: Current remaining time (in seconds) for this domain in the current reset period. Decrements while user is active on the domain.
+- **`resetInterval`**: How often (in hours) the timer resets. Corresponds to the global reset interval setting.
+- **`lastResetTimestamp`**: Unix timestamp (milliseconds) of when this domain's timer was last reset. Used to determine when next reset should occur.
+
+### Default Domains
+The extension initializes with these default domains on first install:
+- `www.reddit.com`, `old.reddit.com` 
+- `twitter.com`, `x.com`
+- `instagram.com`, `www.instagram.com`
+
+All default domains have:
+- `originalTime: 60` (1 minute)
+- `timeLeft: 60` (1 minute) 
+- `resetInterval: 24` (24 hours)
+- `lastResetTimestamp: Date.now()` (current time)
+
+## 2. timeTracking
+
+Analytics storage for tracking actual time spent on domains over different time periods. This data powers the time tracking analytics feature.
+
+### Data Structure
+```javascript
+timeTracking: {
+  'example.com': {
+    dailyTotals: {
+      '2025-08-02': 3600,           // number (seconds) - time spent on this date
+      '2025-08-01': 1800,           // string key (ISO date) -> number value (seconds)
+      '2025-07-31': 2400,
+      // ... additional dates (automatically cleaned up after 30 days)
+    },
+    allTimeTotal: 7800,             // number (seconds) - total time since tracking started
+    trackingStartDate: '2025-07-01', // string (ISO date) - when tracking began for this domain
+    lastResetDate: '2025-07-01',    // string (ISO date) - when tracking was last manually reset
+    currentSessionStart: null,       // number|null (timestamp) - start time of active session
+    lastActiveTimestamp: 1691856000000 // number (timestamp) - last activity for idle cleanup
+  }
+  // ... additional domains
+}
+```
+
+### Field Descriptions
+- **`dailyTotals`**: Object mapping ISO date strings to seconds spent on that date. Used for rolling window calculations (24h, 7d, 30d).
+- **`allTimeTotal`**: Total seconds spent on this domain since tracking started or last reset. Used for "All Time" column.
+- **`trackingStartDate`**: ISO date string of when time tracking began for this domain. Set when domain is first visited.
+- **`lastResetDate`**: ISO date string of when tracking data was last manually reset via "Reset Tracking" button.
+- **`currentSessionStart`**: Unix timestamp (milliseconds) when current browsing session started, or `null` if no active session.
+- **`lastActiveTimestamp`**: Unix timestamp (milliseconds) of last activity. Used for idle detection (sessions end after 2 minutes of inactivity).
+
+### Session Management
+- **Session Start**: Set when user navigates to tracked domain
+- **Session End**: Triggered by navigation away, tab close, or idle timeout (2 minutes)
+- **Daily Aggregation**: Session durations are added to `dailyTotals[currentDate]` and `allTimeTotal`
+- **Data Cleanup**: Daily entries older than 30 days are automatically removed
+
+### Rolling Window Calculations
+- **Last 24h**: Sum of current partial day + previous days within 24-hour window
+- **Last 7d**: Sum of daily totals for last 7 days + current active session time
+- **Last 30d**: Sum of daily totals for last 30 days + current active session time  
+- **All Time**: Direct value from `allTimeTotal` + current active session time
+
+## Storage Management
+
+### Initialization
+- Extension initializes `domainTimers` with default domains on first install
+- `timeTracking` is initialized as empty object `{}`
+- Time tracking data is created per-domain when first visited
+
+### Data Persistence
+- All data persists across browser restarts and extension reloads
+- No cloud storage or external dependencies
+- Uses Chrome's local storage with automatic sync across devices
+
+### Storage Efficiency
+- Daily aggregation minimizes storage usage vs. storing individual sessions
+- Automatic cleanup of data older than 30 days
+- Estimated storage: ~1KB per domain for 30 days of tracking data
+
+### Error Handling
+- All storage operations wrapped in try/catch with fallback defaults
+- Missing data returns sensible defaults (0 for time values, empty objects)
+- Extension degrades gracefully if storage operations fail

@@ -28,18 +28,30 @@
       text-overflow: ellipsis;
     }
     th:nth-child(1), td:nth-child(1) { /* Domain */
-      width: 20%;
+      width: 15%;
     }
     th:nth-child(2), td:nth-child(2) { /* Time Allowed */
-      width: 40%;
+      width: 25%;
     }
     th:nth-child(3), td:nth-child(3) { /* Time Left */
-      width: 15%;
+      width: 10%;
     }
-    th:nth-child(4), td:nth-child(4) { /* Last Reset */
-      width: 15%;
+    th:nth-child(4), td:nth-child(4) { /* Last 24h */
+      width: 10%;
     }
-    th:nth-child(5), td:nth-child(5) { /* Actions */
+    th:nth-child(5), td:nth-child(5) { /* Last 7d */
+      width: 10%;
+    }
+    th:nth-child(6), td:nth-child(6) { /* Last 30d */
+      width: 10%;
+    }
+    th:nth-child(7), td:nth-child(7) { /* All Time */
+      width: 10%;
+    }
+    th:nth-child(8), td:nth-child(8) { /* Last Reset */
+      width: 10%;
+    }
+    th:nth-child(9), td:nth-child(9) { /* Actions */
       width: 10%;
     }
     th {
@@ -80,6 +92,16 @@
     }
     .delete-button:hover {
       background-color: #d32f2f;
+    }
+    .reset-tracking-button {
+      background-color: #ff9800;
+      color: white;
+      margin-left: 4px;
+      font-size: 12px;
+      padding: 6px 12px;
+    }
+    .reset-tracking-button:hover {
+      background-color: #f57c00;
     }
     .save-button {
       background-color: #4CAF50;
@@ -214,20 +236,8 @@
         <label for="globalReset1">1 hr</label>
       </div>
       <div class="radio-option">
-        <input type="radio" id="globalReset2" name="globalResetInterval" value="2">
-        <label for="globalReset2">2 hr</label>
-      </div>
-      <div class="radio-option">
-        <input type="radio" id="globalReset4" name="globalResetInterval" value="4">
-        <label for="globalReset4">4 hr</label>
-      </div>
-      <div class="radio-option">
         <input type="radio" id="globalReset8" name="globalResetInterval" value="8">
         <label for="globalReset8">8 hr</label>
-      </div>
-      <div class="radio-option">
-        <input type="radio" id="globalReset12" name="globalResetInterval" value="12">
-        <label for="globalReset12">12 hr</label>
       </div>
       <div class="radio-option">
         <input type="radio" id="globalReset24" name="globalResetInterval" value="24" checked>
@@ -256,20 +266,12 @@
           <label for="time10">10 min</label>
         </div>
         <div class="radio-option">
-          <input type="radio" id="time15" name="timeAllowed" value="15">
-          <label for="time15">15 min</label>
-        </div>
-        <div class="radio-option">
           <input type="radio" id="time30" name="timeAllowed" value="30">
           <label for="time30">30 min</label>
         </div>
         <div class="radio-option">
           <input type="radio" id="time60" name="timeAllowed" value="60">
           <label for="time60">1 hr</label>
-        </div>
-        <div class="radio-option">
-          <input type="radio" id="time120" name="timeAllowed" value="120">
-          <label for="time120">2 hr</label>
         </div>
       </div>
     </div>
@@ -284,6 +286,10 @@
         <th>Domain</th>
         <th>Time Allowed</th>
         <th>Time Left</th>
+        <th>Last 24h</th>
+        <th>Last 7d</th>
+        <th>Last 30d</th>
+        <th>All Time</th>
         <th>Last Reset</th>
         <th>Actions</th>
       </tr>
@@ -292,6 +298,7 @@
     </tbody>
   </table>
   <button type="button" id="resetTimersButton" class="secondary-button">Reset Timers</button>
+  <button type="button" id="resetAllTrackingButton" class="secondary-button">Reset All Tracking</button>
 
   <script src="storage-utils.js"></script>
   <script src="options.js"></script>

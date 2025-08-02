@@ -48,6 +48,93 @@ document.getElementById('siteForm').addEventListener('submit', async (event) => 
   }
 });
 
+// Calculate time spent for a domain over a specific period (rolling window) - options.js version
+async function calculateTimeSpentInOptions(domain, period) {
+  try {
+    const timeTracking = await StorageUtils.getFromStorage('timeTracking') || {};
+    const domainData = timeTracking[domain];
+    
+    if (!domainData) {
+      return 0;
+    }
+    
+    // Handle all-time period
+    if (period === 'alltime') {
+      return domainData.allTimeTotal || 0;
+    }
+    
+    // Calculate rolling window periods
+    const now = new Date();
+    let totalSeconds = 0;
+    
+    // Add current session time if there's an active session
+    if (domainData.currentSessionStart) {
+      const currentSessionTime = Math.floor((Date.now() - domainData.currentSessionStart) / 1000);
+      totalSeconds += currentSessionTime;
+    }
+    
+    // Determine date range based on period
+    let daysToCheck = 0;
+    switch (period) {
+      case '24h':
+        daysToCheck = 1;
+        break;
+      case '7d':
+        daysToCheck = 7;
+        break;
+      case '30d':
+        daysToCheck = 30;
+        break;
+      default:
+        return 0;
+    }
+    
+    // Sum up daily totals for the specified period
+    for (let i = 0; i < daysToCheck; i++) {
+      const date = new Date(now);
+      date.setDate(date.getDate() - i);
+      const dateString = date.toISOString().split('T')[0];
+      
+      if (domainData.dailyTotals && domainData.dailyTotals[dateString]) {
+        totalSeconds += domainData.dailyTotals[dateString];
+      }
+    }
+    
+    return totalSeconds;
+  } catch (error) {
+    console.error(`Error calculating time spent for ${domain} over ${period}:`, error);
+    return 0;
+  }
+}
+
+// Helper function to format time tracking data for display
+function formatTimeTracking(totalSeconds) {
+  if (isNaN(totalSeconds) || totalSeconds < 0) {
+    return '0s';
+  }
+  
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  
+  // Format as "Xh Ym" for hours/minutes, "Xm Ys" for minutes/seconds
+  if (hours > 0) {
+    if (minutes > 0) {
+      return `${hours}h ${minutes}m`;
+    } else {
+      return `${hours}h`;
+    }
+  } else if (minutes > 0) {
+    if (seconds > 0) {
+      return `${minutes}m ${seconds}s`;
+    } else {
+      return `${minutes}m`;
+    }
+  } else {
+    return `${seconds}s`;
+  }
+}
+
 // This function renders the list of configured domains and their timers into the table.
 async function renderDomainList() {
   // Helper function to convert seconds to a "X min Y sec" format.
@@ -107,7 +194,7 @@ async function renderDomainList() {
       const timeRadioGroup = document.createElement('div');
       timeRadioGroup.className = 'table-radio-group';
       const timeRadioName = `time_${domain}_${Date.now()}`;
-      const timeOptions = [1, 5, 10, 15, 30, 60, 120];
+      const timeOptions = [1, 5, 10, 30, 60];
       const currentTimeMinutes = Math.floor(originalTime / 60);
       
       // Determine which option should be selected
@@ -163,21 +250,50 @@ async function renderDomainList() {
       const timeLeftCell = document.createElement('td');
       timeLeftCell.textContent = formatTime(timeLeft);
       
+      // Time tracking cells (Last 24h, Last 7d, Last 30d, All Time)
+      const last24hCell = document.createElement('td');
+      last24hCell.textContent = 'Loading...';
+      last24hCell.className = 'time-tracking-cell';
+      last24hCell.setAttribute('data-domain', domain);
+      last24hCell.setAttribute('data-period', '24h');
+      
+      const last7dCell = document.createElement('td');
+      last7dCell.textContent = 'Loading...';
+      last7dCell.className = 'time-tracking-cell';
+      last7dCell.setAttribute('data-domain', domain);
+      last7dCell.setAttribute('data-period', '7d');
+      
+      const last30dCell = document.createElement('td');
+      last30dCell.textContent = 'Loading...';
+      last30dCell.className = 'time-tracking-cell';
+      last30dCell.setAttribute('data-domain', domain);
+      last30dCell.setAttribute('data-period', '30d');
+      
+      const allTimeCell = document.createElement('td');
+      allTimeCell.textContent = 'Loading...';
+      allTimeCell.className = 'time-tracking-cell';
+      allTimeCell.setAttribute('data-domain', domain);
+      allTimeCell.setAttribute('data-period', 'alltime');
       
       // Last Reset cell
       const lastResetCell = document.createElement('td');
       lastResetCell.textContent = new Date(lastResetTimestamp).toLocaleString();
       
-      // Actions cell (only delete button now)
+      // Actions cell (delete and reset tracking buttons)
       const actionsCell = document.createElement('td');
       actionsCell.innerHTML = `
         <button class="delete-button" data-domain="${domain}">Delete</button>
+        <button class="reset-tracking-button" data-domain="${domain}">Reset Tracking</button>
       `;
       
       // Append all cells to row
       row.appendChild(domainCell);
       row.appendChild(timeAllowedCell);
       row.appendChild(timeLeftCell);
+      row.appendChild(last24hCell);
+      row.appendChild(last7dCell);
+      row.appendChild(last30dCell);
+      row.appendChild(allTimeCell);
       row.appendChild(lastResetCell);
       row.appendChild(actionsCell);
       
@@ -192,9 +308,49 @@ async function renderDomainList() {
       });
 
       domainListBody.appendChild(row);
+      
+      // Populate time tracking data for this domain (async)
+      updateTimeTrackingCells(domain);
     }
   } catch (error) {
     console.error('Error rendering domain list:', error);
+  }
+}
+
+// Update time tracking cells for a specific domain
+async function updateTimeTrackingCells(domain) {
+  try {
+    // Calculate time spent for each period
+    const last24h = await calculateTimeSpentInOptions(domain, '24h');
+    const last7d = await calculateTimeSpentInOptions(domain, '7d');
+    const last30d = await calculateTimeSpentInOptions(domain, '30d');
+    const allTime = await calculateTimeSpentInOptions(domain, 'alltime');
+    
+    // Update the corresponding cells
+    const cells = document.querySelectorAll(`.time-tracking-cell[data-domain="${domain}"]`);
+    cells.forEach(cell => {
+      const period = cell.getAttribute('data-period');
+      let timeSeconds = 0;
+      
+      switch (period) {
+        case '24h':
+          timeSeconds = last24h;
+          break;
+        case '7d':
+          timeSeconds = last7d;
+          break;
+        case '30d':
+          timeSeconds = last30d;
+          break;
+        case 'alltime':
+          timeSeconds = allTime;
+          break;
+      }
+      
+      cell.textContent = formatTimeTracking(timeSeconds);
+    });
+  } catch (error) {
+    console.error(`Error updating time tracking cells for ${domain}:`, error);
   }
 }
 
@@ -262,6 +418,40 @@ document.getElementById('domainListBody').addEventListener('click', async (event
       console.error('Error deleting domain timer:', error);
     }
   }
+
+  // Logic to handle the reset tracking button click.
+  if (target.classList.contains('reset-tracking-button')) {
+    const domainToReset = target.dataset.domain;
+
+    try {
+      // Get the current time tracking data from storage.
+      const timeTracking = await StorageUtils.getFromStorage('timeTracking') || {};
+      
+      if (timeTracking[domainToReset]) {
+        const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+        
+        // Clear domain's time tracking data while preserving timer settings
+        timeTracking[domainToReset] = {
+          dailyTotals: {},
+          allTimeTotal: 0,
+          trackingStartDate: currentDate,
+          lastResetDate: currentDate,
+          currentSessionStart: null,
+          lastActiveTimestamp: Date.now()
+        };
+
+        // Save the updated time tracking back to storage.
+        await StorageUtils.setToStorage({ timeTracking });
+        
+        // Update the time tracking display for this domain
+        updateTimeTrackingCells(domainToReset);
+        
+        console.debug(`Reset time tracking for domain: ${domainToReset}`);
+      }
+    } catch (error) {
+      console.error('Error resetting domain time tracking:', error);
+    }
+  }
 });
 
 // Add an event listener to the "Reset Timers" button.
@@ -295,6 +485,39 @@ document.getElementById('resetTimersButton').addEventListener('click', async (ev
     console.error('Error resetting timers:', error);
   }
 
+});
+
+// Add an event listener to the "Reset All Tracking" button.
+document.getElementById('resetAllTrackingButton').addEventListener('click', async (event) => {
+  event.preventDefault();
+
+  try {
+    // Get the current time tracking data from storage.
+    const timeTracking = await StorageUtils.getFromStorage('timeTracking') || {};
+    const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    
+    // Reset tracking data for all domains while preserving structure
+    for (const [domain, data] of Object.entries(timeTracking)) {
+      timeTracking[domain] = {
+        dailyTotals: {},
+        allTimeTotal: 0,
+        trackingStartDate: currentDate,
+        lastResetDate: currentDate,
+        currentSessionStart: null,
+        lastActiveTimestamp: Date.now()
+      };
+    }
+
+    // Save the reset tracking data back to storage.
+    await StorageUtils.setToStorage({ timeTracking });
+    
+    // Re-render the domain list to show the updated tracking data.
+    renderDomainList();
+    
+    console.debug('Reset all domain time tracking data');
+  } catch (error) {
+    console.error('Error resetting all tracking data:', error);
+  }
 });
 
 // Add event listener for global reset interval changes
@@ -374,11 +597,14 @@ async function updateTimeDisplays() {
           timeLeftCell.textContent = formatTime(timeLeft);
         }
         
-        // Update last reset (4th column)
-        const lastResetCell = row.cells[3];
+        // Update last reset (8th column) - corrected column index
+        const lastResetCell = row.cells[7];
         if (lastResetCell) {
           lastResetCell.textContent = new Date(lastResetTimestamp).toLocaleString();
         }
+        
+        // Update time tracking columns (4th-7th columns) to include current session time
+        updateTimeTrackingCells(domain);
       }
     });
   } catch (error) {

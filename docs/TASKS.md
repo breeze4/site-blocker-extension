@@ -4,6 +4,31 @@ This file tracks all development tasks for the Site Blocker Extension, following
 
 ## Active Tasks
 
+### 🔧 Timer Expiration Logging Fix
+
+Fix repeated "timer expired for x domain" console logging - should log once then stop until timer resets.
+
+**Issue**: Every time `handleTimerForTab` is called for an expired domain (on tab switches, navigation), it logs "Timer already expired for domain" creating repetitive console spam.
+
+#### Tasks
+1. **Add flag to track when expired message has been logged to prevent repeated console logging** ✅
+   - Add `expiredMessageLogged` boolean field to the domain timer data structure
+   - Initialize this field as `false` when timers are created or reset
+   - Store this flag in the existing `domainTimers` storage
+   - Added backward compatibility check for existing timers
+
+2. **Update timer logic to only log expiration once per reset period** ✅
+   - Modify the timer interval logic (line 347) to set `expiredMessageLogged = true` when logging expiration
+   - Update the "already expired" check (line 354) to only log if `expiredMessageLogged = false`
+   - Set `expiredMessageLogged = true` after logging the "already expired" message
+   - Reset `expiredMessageLogged = false` in the `resetTimersIfNeeded` function when timers reset
+   - Updated SPEC.md documentation with new field
+
+3. **Test that expired timer message logs only once until timer resets** ⏸️
+   - Manual test: Navigate to tracked domain, let timer expire, verify single log message
+   - Manual test: Switch tabs multiple times after expiration, verify no additional logging
+   - Manual test: Wait for timer reset, verify logging works again for next expiration cycle
+
 ### 🚀 Chrome Web Store Release Preparation
 
 Ready to prepare the extension for Chrome Web Store publication following best practices and security requirements.

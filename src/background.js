@@ -9,37 +9,43 @@ let defaultDomainTimers = {
     originalTime: 60,
     timeLeft: 60,
     resetInterval: 24,
-    lastResetTimestamp: Date.now()
+    lastResetTimestamp: Date.now(),
+    expiredMessageLogged: false
   },
   'old.reddit.com': {
     originalTime: 60,
     timeLeft: 60,
     resetInterval: 24,
-    lastResetTimestamp: Date.now()
+    lastResetTimestamp: Date.now(),
+    expiredMessageLogged: false
   },
   'twitter.com': {
     originalTime: 60,
     timeLeft: 60,
     resetInterval: 24,
-    lastResetTimestamp: Date.now()
+    lastResetTimestamp: Date.now(),
+    expiredMessageLogged: false
   },
   'x.com': {
     originalTime: 60,
     timeLeft: 60,
     resetInterval: 24,
-    lastResetTimestamp: Date.now()
+    lastResetTimestamp: Date.now(),
+    expiredMessageLogged: false
   },
   'instagram.com': {
     originalTime: 60,
     timeLeft: 60,
     resetInterval: 24,
-    lastResetTimestamp: Date.now()
+    lastResetTimestamp: Date.now(),
+    expiredMessageLogged: false
   },
   'www.instagram.com': {
     originalTime: 60,
     timeLeft: 60,
     resetInterval: 24,
-    lastResetTimestamp: Date.now()
+    lastResetTimestamp: Date.now(),
+    expiredMessageLogged: false
   },
 };
 
@@ -118,6 +124,7 @@ async function resetTimersIfNeeded(domainTimers) {
     if (currentTime >= resetCanHappenAfterTimestamp) {
       timerData.timeLeft = timerData.originalTime;
       timerData.lastResetTimestamp = currentTime;
+      timerData.expiredMessageLogged = false;
       domainTimers[domain] = timerData;
     }
   }
@@ -323,6 +330,13 @@ async function handleTimerForTab(tab) {
     return;
   }
 
+  // Initialize expiredMessageLogged flag if it doesn't exist (for backward compatibility)
+  if (domainTimer.expiredMessageLogged === undefined) {
+    domainTimer.expiredMessageLogged = false;
+    domainTimers[domain] = domainTimer;
+    await saveDomainTimers(domainTimers);
+  }
+
   debugLog('Found timer for domain:', domain, 'Time left:', domainTimer.timeLeft);
 
   // Initialize time tracking for this domain and start session
@@ -344,14 +358,22 @@ async function handleTimerForTab(tab) {
       await saveDomainTimers(domainTimers);
 
       if (domainTimers[domain].timeLeft <= 0) {
-        debugLog('Timer expired for domain:', domain);
+        if (!domainTimers[domain].expiredMessageLogged) {
+          debugLog('Timer expired for domain:', domain);
+          domainTimers[domain].expiredMessageLogged = true;
+          await saveDomainTimers(domainTimers);
+        }
         clearInterval(activeTimerIntervalId);
         activeTimerIntervalId = null;
         // Block navigation on the next attempt.
       }
     }, 1000);
   } else {
-    debugLog('Timer already expired for domain:', domain, 'blocking navigation');
+    if (!domainTimer.expiredMessageLogged) {
+      debugLog('Timer already expired for domain:', domain, 'blocking navigation');
+      domainTimers[domain].expiredMessageLogged = true;
+      await saveDomainTimers(domainTimers);
+    }
     // If time has already expired, block navigation.
     chrome.tabs.update(tab.id, { url: "chrome://newtab" });
   }

@@ -77,7 +77,7 @@ The background script is the core of the extension, responsible for managing tim
 
 *   **Data Storage**:
     *   Domain timers are stored in `chrome.storage.local` under the key `domainTimers`.
-    *   The data structure for each domain is an object: `{ originalTime: number, timeLeft: number, resetInterval: number, lastResetTimestamp: number }`.
+    *   The data structure for each domain is an object: `{ originalTime: number, timeLeft: number, resetInterval: number, lastResetTimestamp: number, expiredMessageLogged: boolean }`.
     *   A default set of timers is provided for common social media sites.
 *   **Timer Logic**:
     *   The script initializes by loading the timers from storage.
@@ -269,13 +269,15 @@ domainTimers: {
     originalTime: 300,              // number (seconds) - original time limit set by user
     timeLeft: 180,                  // number (seconds) - remaining time for current period
     resetInterval: 24,              // number (hours) - how often timer resets (1, 8, 24)
-    lastResetTimestamp: 1691856000000  // number (milliseconds) - when timer was last reset
+    lastResetTimestamp: 1691856000000,  // number (milliseconds) - when timer was last reset
+    expiredMessageLogged: false     // boolean - prevents repeated console logging after expiration
   },
   'another-site.com': {
     originalTime: 600,
     timeLeft: 450,
     resetInterval: 24,
-    lastResetTimestamp: 1691856000000
+    lastResetTimestamp: 1691856000000,
+    expiredMessageLogged: false
   }
   // ... additional domains
 }
@@ -286,6 +288,7 @@ domainTimers: {
 - **`timeLeft`**: Current remaining time (in seconds) for this domain in the current reset period. Decrements while user is active on the domain.
 - **`resetInterval`**: How often (in hours) the timer resets. Corresponds to the global reset interval setting.
 - **`lastResetTimestamp`**: Unix timestamp (milliseconds) of when this domain's timer was last reset. Used to determine when next reset should occur.
+- **`expiredMessageLogged`**: Boolean flag to prevent repeated console logging after timer expiration. Set to `true` after first expiration message, reset to `false` when timer resets.
 
 ### Default Domains
 The extension initializes with these default domains on first install:
@@ -298,6 +301,7 @@ All default domains have:
 - `timeLeft: 60` (1 minute) 
 - `resetInterval: 24` (24 hours)
 - `lastResetTimestamp: Date.now()` (current time)
+- `expiredMessageLogged: false` (logging enabled)
 
 ## 2. timeTracking
 

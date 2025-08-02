@@ -229,7 +229,8 @@ document.getElementById('siteForm').addEventListener('submit', async (event) => 
         originalTime: originalTimeInSeconds,
         timeLeft: originalTimeInSeconds, // Set timeLeft to originalTime
         resetInterval: resetInterval,
-        lastResetTimestamp: Date.now()
+        lastResetTimestamp: Date.now(),
+        expiredMessageLogged: false
       };
 
       // Save the updated timers back to storage.

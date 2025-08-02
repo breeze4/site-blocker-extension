@@ -47,14 +47,39 @@
     }
     button {
       cursor: pointer;
-      padding: 5px 10px;
-      border: 1px solid #ccc;
+      padding: 8px 16px;
+      border: none;
       border-radius: 4px;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background-color 0.2s ease;
+      white-space: nowrap;
+    }
+    .primary-button {
+      background-color: #4CAF50;
+      color: white;
+    }
+    .primary-button:hover:not(:disabled) {
+      background-color: #45a049;
+    }
+    .primary-button:disabled {
+      background-color: #cccccc;
+      color: #666666;
+      cursor: not-allowed;
+    }
+    .secondary-button {
+      background-color: #2196F3;
+      color: white;
+    }
+    .secondary-button:hover {
+      background-color: #1976D2;
     }
     .delete-button {
       background-color: #f44336;
       color: white;
-      border-color: #f44336;
+    }
+    .delete-button:hover {
+      background-color: #d32f2f;
     }
     .save-button {
       background-color: #4CAF50;
@@ -70,21 +95,41 @@
     .radio-group {
       display: flex;
       flex-wrap: wrap;
-      gap: 10px;
-      margin: 5px 0;
+      gap: 6px;
+      margin: 8px 0;
     }
     .radio-option {
-      display: flex;
-      align-items: center;
-      gap: 5px;
+      position: relative;
     }
     .radio-option input[type="radio"] {
-      margin: 0;
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
     }
     .radio-option label {
+      display: inline-block;
+      padding: 8px 16px;
       margin: 0;
       cursor: pointer;
       font-size: 14px;
+      border: 2px solid #ddd;
+      border-radius: 4px;
+      background-color: #f9f9f9;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+      min-width: 50px;
+      text-align: center;
+    }
+    .radio-option label:hover {
+      border-color: #4CAF50;
+      background-color: #f0f8f0;
+    }
+    .radio-option input[type="radio"]:checked + label {
+      border-color: #4CAF50;
+      background-color: #4CAF50;
+      color: white;
+      font-weight: bold;
     }
     .table-radio-group {
       display: flex;
@@ -144,6 +189,7 @@
       padding: 6px 12px;
       cursor: pointer;
       font-size: 12px;
+      font-weight: 500;
       transition: background-color 0.2s ease;
       white-space: nowrap;
     }
@@ -228,7 +274,7 @@
       </div>
     </div>
     
-    <button type="submit">Add/Update Timer</button>
+    <button type="submit" class="primary-button">Add/Update Timer</button>
   </form>
 
   <h2>Tracked Sites</h2>
@@ -245,7 +291,7 @@
     <tbody id="domainListBody">
     </tbody>
   </table>
-  <button type="button" id="resetTimersButton">Reset Timers</button>
+  <button type="button" id="resetTimersButton" class="secondary-button">Reset Timers</button>
 
   <script src="options.js"></script>
 </body>

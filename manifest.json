@@ -16,6 +16,7 @@
         "<all_urls>"
       ],
       "js": [
+        "storage-utils.js",
         "content.js"
       ]
     }

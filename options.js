@@ -1,7 +1,7 @@
 // This script handles the logic for the options page, allowing users to configure the site blocker.
 
 // Add an event listener to the form for adding or updating a site timer.
-document.getElementById('siteForm').addEventListener('submit', (event) => {
+document.getElementById('siteForm').addEventListener('submit', async (event) => {
   // Prevent the default form submission behavior.
   event.preventDefault();
 
@@ -19,9 +19,11 @@ document.getElementById('siteForm').addEventListener('submit', (event) => {
   // Check if all the required fields have a value.
   if (domain && originalTimeInMinutes !== null) {
     const originalTimeInSeconds = originalTimeInMinutes * 60;
-    // Get the current list of domain timers from storage.
-    chrome.storage.local.get('domainTimers', (result) => {
-      const domainTimers = result.domainTimers || {};
+    
+    try {
+      // Get the current list of domain timers from storage.
+      const domainTimers = await StorageUtils.getFromStorage('domainTimers') || {};
+      
       // Add or update the timer for the specified domain.
       // When adding a new timer, timeLeft is set to the originalTime.
       domainTimers[domain] = {
@@ -32,20 +34,22 @@ document.getElementById('siteForm').addEventListener('submit', (event) => {
       };
 
       // Save the updated timers back to storage.
-      chrome.storage.local.set({ domainTimers }, () => {
-        // Re-render the list of domains to reflect the changes.
-        renderDomainList();
-        // Clear the form fields for the next entry.
-        document.getElementById('domainInput').value = '';
-        // Reset radio buttons to default selections
-        document.getElementById('time5').checked = true;
-      });
-    });
+      await StorageUtils.setToStorage({ domainTimers });
+      
+      // Re-render the list of domains to reflect the changes.
+      renderDomainList();
+      // Clear the form fields for the next entry.
+      document.getElementById('domainInput').value = '';
+      // Reset radio buttons to default selections
+      document.getElementById('time5').checked = true;
+    } catch (error) {
+      console.error('Error updating domain timer:', error);
+    }
   }
 });
 
 // This function renders the list of configured domains and their timers into the table.
-function renderDomainList() {
+async function renderDomainList() {
   // Helper function to convert seconds to a "X min Y sec" format.
   const formatTime = (totalSeconds) => {
     if (isNaN(totalSeconds) || totalSeconds < 0) {
@@ -56,9 +60,9 @@ function renderDomainList() {
     return `${minutes} min ${seconds} sec`;
   };
 
-  // Get the domain timers from storage.
-  chrome.storage.local.get('domainTimers', (result) => {
-    const domainTimers = result.domainTimers || {};
+  try {
+    // Get the domain timers from storage.
+    const domainTimers = await StorageUtils.getFromStorage('domainTimers') || {};
     const domainListBody = document.getElementById('domainListBody');
     
     // Store current radio button selections and save button states to preserve during re-render
@@ -189,11 +193,13 @@ function renderDomainList() {
 
       domainListBody.appendChild(row);
     }
-  });
+  } catch (error) {
+    console.error('Error rendering domain list:', error);
+  }
 }
 
 // Use event delegation to handle clicks on the table body. This is more efficient than adding listeners to each button and cell.
-document.getElementById('domainListBody').addEventListener('click', (event) => {
+document.getElementById('domainListBody').addEventListener('click', async (event) => {
   const target = event.target;
 
   // Skip click-to-edit for radio button columns (originalTime and resetInterval)
@@ -215,21 +221,24 @@ document.getElementById('domainListBody').addEventListener('click', (event) => {
       if (!isNaN(originalTimeInMinutes) && !isNaN(resetInterval)) {
         const originalTimeInSeconds = originalTimeInMinutes * 60;
 
-        chrome.storage.local.get('domainTimers', (result) => {
-          const domainTimers = result.domainTimers || {};
+        try {
+          const domainTimers = await StorageUtils.getFromStorage('domainTimers') || {};
           if (domainTimers[domainToSave]) {
             domainTimers[domainToSave].originalTime = originalTimeInSeconds;
             // Also update timeLeft if the originalTime is changed, to avoid confusion.
             domainTimers[domainToSave].timeLeft = originalTimeInSeconds;
             domainTimers[domainToSave].resetInterval = resetInterval;
           }
-          chrome.storage.local.set({ domainTimers }, () => {
-            // Disable the save button after successful save
-            const saveButton = target;
-            saveButton.disabled = true;
-            renderDomainList();
-          });
-        });
+          
+          await StorageUtils.setToStorage({ domainTimers });
+          
+          // Disable the save button after successful save
+          const saveButton = target;
+          saveButton.disabled = true;
+          renderDomainList();
+        } catch (error) {
+          console.error('Error saving domain timer:', error);
+        }
       }
     }
   }
@@ -238,23 +247,25 @@ document.getElementById('domainListBody').addEventListener('click', (event) => {
   if (target.classList.contains('delete-button')) {
     const domainToDelete = target.dataset.domain;
 
-    // Get the current list of domain timers from storage.
-    chrome.storage.local.get('domainTimers', (result) => {
-      const domainTimers = result.domainTimers || {};
+    try {
+      // Get the current list of domain timers from storage.
+      const domainTimers = await StorageUtils.getFromStorage('domainTimers') || {};
       // Remove the domain from the object.
       delete domainTimers[domainToDelete];
 
       // Save the updated timers back to storage.
-      chrome.storage.local.set({ domainTimers }, () => {
-        // Re-render the list of domains to reflect the changes.
-        renderDomainList();
-      });
-    });
+      await StorageUtils.setToStorage({ domainTimers });
+      
+      // Re-render the list of domains to reflect the changes.
+      renderDomainList();
+    } catch (error) {
+      console.error('Error deleting domain timer:', error);
+    }
   }
 });
 
 // Add an event listener to the "Reset Timers" button.
-document.getElementById('resetTimersButton').addEventListener('click', (event) => {
+document.getElementById('resetTimersButton').addEventListener('click', async (event) => {
   event.preventDefault();
 
   // This function resets the time left for all domains to their original time.
@@ -269,63 +280,73 @@ document.getElementById('resetTimersButton').addEventListener('click', (event) =
     return domainTimers;
   }
 
-  // Get the current domain timers from storage.
-  chrome.storage.local.get('domainTimers', (result) => {
-    const domainTimers = result.domainTimers || {};
+  try {
+    // Get the current domain timers from storage.
+    const domainTimers = await StorageUtils.getFromStorage('domainTimers') || {};
     // Reset the timers.
     const domainTimersReset = resetTimers(domainTimers);
 
     // Save the reset timers back to storage.
-    chrome.storage.local.set({ domainTimers: domainTimersReset }, () => {
-      // Re-render the domain list to show the updated timers.
-      renderDomainList()
-    });
-  });
+    await StorageUtils.setToStorage({ domainTimers: domainTimersReset });
+    
+    // Re-render the domain list to show the updated timers.
+    renderDomainList();
+  } catch (error) {
+    console.error('Error resetting timers:', error);
+  }
 
 });
 
 // Add event listener for global reset interval changes
-document.getElementById('globalResetIntervalGroup').addEventListener('change', () => {
+document.getElementById('globalResetIntervalGroup').addEventListener('change', async () => {
   const globalResetIntervalRadio = document.querySelector('input[name="globalResetInterval"]:checked');
   if (globalResetIntervalRadio) {
     const newResetInterval = parseInt(globalResetIntervalRadio.value, 10);
     
-    // Update all existing domains with the new reset interval
-    chrome.storage.local.get('domainTimers', (result) => {
-      const domainTimers = result.domainTimers || {};
+    try {
+      // Update all existing domains with the new reset interval
+      const domainTimers = await StorageUtils.getFromStorage('domainTimers') || {};
       
       // Update reset interval for all domains
       for (const domain in domainTimers) {
         domainTimers[domain].resetInterval = newResetInterval;
       }
       
-      chrome.storage.local.set({ domainTimers }, () => {
-        renderDomainList();
-      });
-    });
+      await StorageUtils.setToStorage({ domainTimers });
+      renderDomainList();
+    } catch (error) {
+      console.error('Error updating global reset interval:', error);
+    }
   }
 });
 
 // Load and set the current global reset interval when page loads
-chrome.storage.local.get('domainTimers', (result) => {
-  const domainTimers = result.domainTimers || {};
-  const domains = Object.keys(domainTimers);
-  
-  if (domains.length > 0) {
-    // Use the reset interval from the first domain (they should all be the same now)
-    const currentResetInterval = domainTimers[domains[0]].resetInterval || 24;
-    const radioToSelect = document.getElementById(`globalReset${currentResetInterval}`);
-    if (radioToSelect) {
-      radioToSelect.checked = true;
+async function initializeGlobalResetInterval() {
+  try {
+    const domainTimers = await StorageUtils.getFromStorage('domainTimers') || {};
+    const domains = Object.keys(domainTimers);
+    
+    if (domains.length > 0) {
+      // Use the reset interval from the first domain (they should all be the same now)
+      const currentResetInterval = domainTimers[domains[0]].resetInterval || 24;
+      const radioToSelect = document.getElementById(`globalReset${currentResetInterval}`);
+      if (radioToSelect) {
+        radioToSelect.checked = true;
+      }
     }
+  } catch (error) {
+    console.error('Error initializing global reset interval:', error);
   }
-});
+}
+
+// Initialize when page loads
+initializeGlobalResetInterval();
 
 // Render the initial list of domains when the options page is loaded.
 renderDomainList();
 
 // Function to update only time left and last reset columns without full re-render
-function updateTimeDisplays() {
+async function updateTimeDisplays() {
   const formatTime = (totalSeconds) => {
     if (isNaN(totalSeconds) || totalSeconds < 0) {
       return 'Invalid time';
@@ -335,8 +356,8 @@ function updateTimeDisplays() {
     return `${minutes} min ${seconds} sec`;
   };
 
-  chrome.storage.local.get('domainTimers', (result) => {
-    const domainTimers = result.domainTimers || {};
+  try {
+    const domainTimers = await StorageUtils.getFromStorage('domainTimers') || {};
     const domainListBody = document.getElementById('domainListBody');
     const rows = domainListBody.querySelectorAll('tr');
     
@@ -360,7 +381,9 @@ function updateTimeDisplays() {
         }
       }
     });
-  });
+  } catch (error) {
+    console.error('Error updating time displays:', error);
+  }
 }
 
 // Set an interval to update only time displays every second

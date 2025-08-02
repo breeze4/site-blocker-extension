@@ -43,6 +43,10 @@ let defaultDomainTimers = {
 // This variable will hold the interval ID for the currently active timer. There should only be one timer running at any given time.
 let activeTimerIntervalId = null;
 
+// Import storage utilities (these are now defined in storage-utils.js)
+// Note: In service workers, we'll need to import the utilities differently
+// For now, we'll keep the local functions but could refactor to import later
+
 // A Promise-based wrapper for chrome.storage.local.set to allow for async/await syntax. This makes the code cleaner and easier to read.
 function setToStorage(keyValuePairs) {
   return new Promise((resolve, reject) => {

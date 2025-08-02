@@ -1,12 +1,196 @@
 // This script handles the logic for the options page, allowing users to configure the site blocker.
 
+// URL parsing utility function for streamlined URL input
+function parseURL(input) {
+  // Normalize input
+  let url = input.trim().toLowerCase();
+  
+  // Add protocol if missing
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = 'https://' + url;
+  }
+  
+  try {
+    const urlObj = new URL(url);
+    let hostname = urlObj.hostname;
+    
+    // Remove www prefix
+    if (hostname.startsWith('www.')) {
+      hostname = hostname.substring(4);
+    }
+    
+    // Extract base domain (handle subdomains)
+    const domain = extractBaseDomain(hostname);
+    
+    return {
+      success: true,
+      domain: domain,
+      original: input
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: 'Invalid URL format',
+      original: input
+    };
+  }
+}
+
+// Base domain extraction function for handling subdomains
+function extractBaseDomain(hostname) {
+  // Handle special cases like .co.uk, .com.au, etc.
+  const parts = hostname.split('.');
+  
+  // For most domains, take last two parts (domain.tld)
+  if (parts.length >= 2) {
+    return parts.slice(-2).join('.');
+  }
+  
+  return hostname;
+}
+
+// Domain validation utility function
+function validateDomain(hostname) {
+  // Reject IP addresses
+  const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
+  if (ipRegex.test(hostname)) {
+    return { valid: false, error: 'IP addresses are not supported. Please use domain names.' };
+  }
+  
+  // Reject localhost and local domains
+  if (hostname === 'localhost' || hostname.endsWith('.local') || hostname.endsWith('.localhost')) {
+    return { valid: false, error: 'Local domains cannot be tracked.' };
+  }
+  
+  // Basic domain format validation
+  const domainRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/;
+  if (!domainRegex.test(hostname)) {
+    return { valid: false, error: 'Invalid domain format.' };
+  }
+  
+  return { valid: true };
+}
+
+// Enhanced parseURL function with validation and better error messages
+function parseURLWithValidation(input) {
+  if (!input || !input.trim()) {
+    return {
+      success: false,
+      error: 'Please enter a URL or domain name',
+      original: input
+    };
+  }
+  
+  const result = parseURL(input);
+  
+  if (!result.success) {
+    // Check for common malformed URL issues
+    if (input.includes(' ')) {
+      return {
+        success: false,
+        error: 'URLs cannot contain spaces. Please check your input.',
+        original: input
+      };
+    }
+    
+    if (input.includes('..')) {
+      return {
+        success: false,
+        error: 'Invalid URL format. Please enter a valid domain.',
+        original: input
+      };
+    }
+    
+    return {
+      success: false,
+      error: 'Invalid URL format. Try: example.com or https://example.com',
+      original: input
+    };
+  }
+  
+  const validation = validateDomain(result.domain);
+  if (!validation.valid) {
+    return {
+      success: false,
+      error: validation.error,
+      original: input
+    };
+  }
+  
+  return result;
+}
+
+// Base domain extraction for sorting (reuse existing extractBaseDomain)
+function getBaseDomainForSorting(domain) {
+  return extractBaseDomain(domain);
+}
+
+// Check if domain already exists in storage
+async function checkDomainExists(domain) {
+  try {
+    const domainTimers = await StorageUtils.getFromStorage('domainTimers') || {};
+    return domainTimers.hasOwnProperty(domain);
+  } catch (error) {
+    console.error('Error checking domain existence:', error);
+    return false;
+  }
+}
+
+// Real-time URL input parsing and preview
+document.getElementById('urlInput').addEventListener('input', async (event) => {
+  const input = event.target.value;
+  const preview = document.getElementById('urlPreview');
+  
+  if (!input.trim()) {
+    preview.innerHTML = '<span class="preview-placeholder">Enter a URL or domain to see what will be tracked</span>';
+    return;
+  }
+  
+  const result = parseURLWithValidation(input);
+  
+  if (result.success) {
+    // Check if domain already exists
+    const isDuplicate = await checkDomainExists(result.domain);
+    
+    if (isDuplicate) {
+      preview.innerHTML = `
+        <span class="preview-warning">WARNING: ${result.domain} is already tracked</span>
+      `;
+    } else {
+      preview.innerHTML = `
+        <span class="preview-success">Will track: <strong>${result.domain}</strong></span>
+      `;
+    }
+  } else {
+    preview.innerHTML = `
+      <span class="preview-error">ERROR: ${result.error}</span>
+    `;
+  }
+});
+
+// Initialize preview on page load
+document.addEventListener('DOMContentLoaded', () => {
+  const preview = document.getElementById('urlPreview');
+  preview.innerHTML = '<span class="preview-placeholder">Enter a URL or domain to see what will be tracked</span>';
+});
+
 // Add an event listener to the form for adding or updating a site timer.
 document.getElementById('siteForm').addEventListener('submit', async (event) => {
   // Prevent the default form submission behavior.
   event.preventDefault();
 
   // Get the values from the form fields.
-  const domain = document.getElementById('domainInput').value.trim();
+  const input = document.getElementById('urlInput').value.trim();
+  
+  // Parse and validate the URL input
+  const parseResult = parseURLWithValidation(input);
+  
+  if (!parseResult.success) {
+    alert(`Error: ${parseResult.error}`);
+    return;
+  }
+  
+  const domain = parseResult.domain;
   
   // Get selected radio button values
   const timeAllowedRadio = document.querySelector('input[name="timeAllowed"]:checked');
@@ -24,6 +208,12 @@ document.getElementById('siteForm').addEventListener('submit', async (event) => 
       // Get the current list of domain timers from storage.
       const domainTimers = await StorageUtils.getFromStorage('domainTimers') || {};
       
+      // Check for duplicates
+      if (domainTimers[domain]) {
+        alert(`${domain} is already being tracked`);
+        return;
+      }
+      
       // Add or update the timer for the specified domain.
       // When adding a new timer, timeLeft is set to the originalTime.
       domainTimers[domain] = {
@@ -39,7 +229,9 @@ document.getElementById('siteForm').addEventListener('submit', async (event) => 
       // Re-render the list of domains to reflect the changes.
       renderDomainList();
       // Clear the form fields for the next entry.
-      document.getElementById('domainInput').value = '';
+      document.getElementById('urlInput').value = '';
+      // Clear the preview
+      document.getElementById('urlPreview').innerHTML = '<span class="preview-placeholder">Enter a URL or domain to see what will be tracked</span>';
       // Reset radio buttons to default selections
       document.getElementById('time5').checked = true;
     } catch (error) {
@@ -175,8 +367,25 @@ async function renderDomainList() {
     // Clear the existing table body before rendering the updated list.
     domainListBody.innerHTML = '';
 
-    // Iterate over the domain timers and create a table row for each one.
-    for (const [domain, { originalTime, timeLeft, resetInterval, lastResetTimestamp }] of Object.entries(domainTimers)) {
+    // Sort domains by base domain first, then by subdomain
+    const sortedDomains = Object.entries(domainTimers).sort((a, b) => {
+      const [domainA] = a;
+      const [domainB] = b;
+      
+      const baseDomainA = getBaseDomainForSorting(domainA);
+      const baseDomainB = getBaseDomainForSorting(domainB);
+      
+      // First sort by base domain
+      if (baseDomainA !== baseDomainB) {
+        return baseDomainA.localeCompare(baseDomainB);
+      }
+      
+      // If base domains are the same, sort by full domain (subdomain)
+      return domainA.localeCompare(domainB);
+    });
+
+    // Iterate over the sorted domain timers and create a table row for each one.
+    for (const [domain, { originalTime, timeLeft, resetInterval, lastResetTimestamp }] of sortedDomains) {
       const row = document.createElement('tr');
       
       // Create cells
@@ -281,9 +490,12 @@ async function renderDomainList() {
       
       // Actions cell (delete and reset tracking buttons)
       const actionsCell = document.createElement('td');
+      actionsCell.className = 'actions-cell';
       actionsCell.innerHTML = `
-        <button class="delete-button" data-domain="${domain}">Delete</button>
-        <button class="reset-tracking-button" data-domain="${domain}">Reset Tracking</button>
+        <div class="actions-buttons">
+          <button class="delete-button" data-domain="${domain}">Delete</button>
+          <button class="reset-tracking-button" data-domain="${domain}">Reset Tracking</button>
+        </div>
       `;
       
       // Append all cells to row

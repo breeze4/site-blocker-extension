@@ -9,11 +9,11 @@ When you want very limited access to sites, just enough to view random links you
 ## Current Features
 
 ### Core Timer Functionality
-* Add/remove domains with customizable time limits (1m, 5m, 10m, 30m, 1hr)
+* Add/remove domains with customizable time limits (1min, 5min, 10min, 30min, 1hr)
 * Automatic timer countdown when visiting tracked domains
 * Page blocking when time limit is exceeded
 * Configurable reset intervals (1hr, 8hr, 24hr) with 24hr default
-* Real-time timer display in options page
+* Real-time timer display updating every second in options page
 
 ### Time Tracking Analytics  
 * Real-time tracking of actual time spent on domains
@@ -29,15 +29,16 @@ When you want very limited access to sites, just enough to view random links you
 * Inline editing with save functionality
 * Professional styling with consistent design system
 
-## Planned Features
-
-### Streamlined URL Input (Next Feature)
+### Streamlined URL Input
 * Intelligent URL parsing with real-time domain extraction
 * Support for full URLs, partial URLs, and domain names
 * Visual feedback showing what domain will be tracked
 * Smart handling of subdomains and www prefixes
+* Domain-based table sorting for logical organization
 
-### Subdomain Support
+## Planned Features
+
+### Subdomain Support (Next Feature)
 * Automatic blocking of subdomains when parent domain is tracked
 * Intelligent domain matching and grouping
 
@@ -113,79 +114,8 @@ The options page provides a user interface for managing the blocked sites.
     *   Save buttons are integrated inline with time selection radio buttons
     *   JavaScript handles selective DOM updates to preserve user state during timer refreshes
 
-# Feature: Enlarge Options Window
 
-## 1. Problem
-
-The extension's options page currently opens in a small, popup window. This provides a poor user experience, as the content, especially the new table layout, feels cramped and requires scrolling.
-
-## 2. Solution
-
-The options page will be configured to open in a standard, full-sized browser tab. This will provide ample space for the user interface, improving readability and usability.
-
-## 3. Technical Implementation
-
-The change will be implemented by modifying the extension's manifest file.
-
-*   **File:** `manifest.json`
-*   **Key:** `options_ui`
-*   **Property:** `open_in_tab`
-*   **Value Change:** The value of `open_in_tab` will be changed from `false` to `true`.
-
-## 4. Expected Outcome
-
-When a user accesses the extension's options, the `options.html` page will open in a new browser tab, utilizing the full window size.
-
-# Feature: Box-Style Radio Button Interface
-
-## 1. Problem
-
-The extension needed a more intuitive and visually appealing interface for time selection, with better user experience and consistent design across all interactive elements.
-
-## 2. Solution
-
-Implemented a comprehensive box-style radio button system with:
-- Hidden radio inputs with styled clickable label boxes
-- Visual feedback states (default, hover, selected)
-- Consistent design language across all form elements
-- Inline save functionality for immediate access
-
-## 3. Technical Implementation
-
-### Global Reset Interval Setting
-- Single setting at top of options page that applies to all sites
-- Values: 1 hr, 8 hr, 24 hr
-- Default selection: 24 hr
-- Automatically updates all existing domains when changed
-
-### Form Radio Buttons
-- Time Allowed values: 1 min, 5 min, 10 min, 30 min, 1 hr
-- Box-style design with green selection states
-- Default selection: 5 min
-
-### Table Integration
-- Always-visible radio buttons in Time Allowed column
-- Inline save buttons positioned next to radio button groups
-- State preservation during automatic timer updates
-- Fixed column widths with percentage-based responsive layout
-
-### Visual Design System
-- Primary buttons (green) for main actions
-- Secondary buttons (blue) for supporting actions  
-- Delete buttons (red) for destructive actions
-- Consistent hover effects and transitions
-
-## 4. Current Implementation
-
-The interface now features:
-- Three main sections: Global Settings, Add/Update form, Tracked Sites table
-- Unified box-style radio buttons throughout
-- Real-time updates that don't disrupt user interactions
-- Professional appearance with consistent styling
-- Responsive layout that adapts to screen size
-
-
-# Feature: Time Tracking Analytics ✅ IMPLEMENTED
+# Feature: Time Tracking Analytics
 
 Comprehensive time tracking system that records actual time spent on domains and displays analytics in multiple time buckets.
 
@@ -302,22 +232,16 @@ async function calculateTimeSpent(domain, period) { /* ... */ }
 - Preserve domain timer settings (originalTime, timeLeft, etc.)
 - Update all `lastResetDate` values
 
-### Implementation Status
+### System Overview
 
-✅ **Completed Features:**
-- Complete time tracking analytics system (5 phases, 20 tasks)
-- Comprehensive data model documentation
-- UI cleanup and optimization
-- Data consistency improvements
-
-🎯 **Current State:**
-- Fully functional site blocker with advanced analytics
-- Real-time time tracking and session management  
-- Professional user interface with modern design
+**Technical Features:**
+- Rolling window analytics with daily aggregation
+- Real-time session management with idle detection
+- Comprehensive data model with automatic cleanup
+- Professional user interface with live updates
 - Robust error handling and data persistence
-- Clean, documented codebase ready for extension
 
-📈 **Results Achieved:**
+**User Benefits:**
 - **Behavioral Insights**: Users can see actual vs. intended usage patterns
 - **Data-Driven Decisions**: Analytics enable informed time limit adjustments
 - **Progress Tracking**: Historical data shows improvement over time  
@@ -443,11 +367,11 @@ timeTracking: {
 
 ---
 
-# Development Readiness
+# Technical Architecture
 
-## Current Architecture
+## Project Structure
 
-The extension is built with a clean, modular architecture:
+The extension uses a clean, modular architecture:
 
 ### Core Files
 - **`background.js`**: Service worker handling timer logic and time tracking
@@ -461,113 +385,5 @@ The extension is built with a clean, modular architecture:
 - **Error Handling**: Comprehensive try/catch blocks with graceful fallbacks
 - **Modularity**: Shared utilities and clear separation of concerns
 - **Documentation**: Complete data model and API documentation
-- **Testing Ready**: Atomic functions suitable for unit testing
+- **Testable Code**: Atomic functions suitable for unit testing
 
-## Ready for Extension
-
-The codebase is now clean, well-documented, and ready for new functionality development:
-
-1. **Clean Foundation**: All legacy code patterns have been modernized
-2. **Stable Base**: Core functionality is solid and well-tested
-3. **Documented APIs**: Clear interfaces for extending functionality
-4. **Consistent Patterns**: Established conventions for future development
-5. **Performance Optimized**: Efficient storage and real-time updates
-
-## Next Development Phase
-
-Ready to implement planned features:
-- Streamlined URL input with intelligent domain parsing
-- Subdomain support and intelligent domain matching
-- Enhanced analytics with reporting and goal setting  
-- Advanced blocking features with bypass options
-- Export functionality and data visualization
-- Performance monitoring and optimization tools
-
----
-
-# Feature: Streamlined URL Input
-
-## Overview
-
-Intelligent URL parsing input that accepts any URL format and automatically extracts the trackable domain with real-time visual feedback.
-
-## User Experience
-
-### Input Examples
-Users can paste any of these formats:
-- **Full URLs**: `https://www.reddit.com/r/programming/posts/123`
-- **Simple URLs**: `reddit.com` or `www.reddit.com`
-- **With protocols**: `http://old.reddit.com`
-- **With paths**: `twitter.com/user/status/456`
-- **Subdomains**: `mail.google.com`, `docs.google.com`
-
-### Visual Feedback
-As the user types, show a preview below the input:
-```
-Input: https://www.reddit.com/r/programming
-Preview: ✓ Will track: reddit.com
-```
-
-### Intelligent Processing
-- **www prefix**: Automatically stripped to get base domain
-- **Subdomains**: Extracts base domain (e.g., `mail.google.com` → `google.com`)
-- **Invalid URLs**: Shows helpful error messages  
-- **Duplicates**: Warns if domain is already tracked
-- **Edge cases**: Handles IP addresses, localhost, malformed URLs
-
-## Features
-
-### Real-time Preview
-Shows parsed domain and validation status as user types:
-```
-Input: https://www.reddit.com/r/programming
-Preview: ✓ Will track: reddit.com
-```
-
-### Visual Feedback States
-- **✓ Success**: Valid URL with extracted domain shown
-- **⚠️ Warning**: Domain already tracked
-- **❌ Error**: Invalid URL with helpful message
-- **Placeholder**: Helpful examples when empty
-
-### Smart Domain Extraction
-- Removes protocols, paths, and query parameters
-- Strips www prefixes automatically
-- Extracts base domain from subdomains
-- Handles international domains and special TLDs
-
-### Enhanced User Flow
-1. **Paste URL**: Copy any URL from browser address bar
-2. **See Preview**: Instantly see what domain will be tracked
-3. **Add Domain**: One-click addition with time limit selection
-
-### Domain-Based Table Sorting
-- Table rows sorted by base domain (not subdomain)
-- Related domains grouped together (e.g., `reddit.com`, `www.reddit.com`, `old.reddit.com`)
-- Maintains logical organization as users add multiple subdomains
-
-## Future Enhancements
-
-### Smart Suggestions
-For common services, suggest tracking the base domain:
-- `mail.google.com` → Suggest tracking `google.com` (includes all Google services)
-- `docs.google.com` → Same suggestion with explanation
-
-### Bulk Processing
-Support pasting multiple URLs:
-- Paste newline-separated URLs
-- Show preview for each domain
-- Batch add with confirmation
-
-### Browser Integration
-- Detect recently visited domains
-- Suggest adding frequently visited untracked sites
-- One-click "Add Current Site" button
-
-## Benefits
-
-- **Zero Friction**: Copy-paste workflow from browser to extension
-- **Error Prevention**: Automatic parsing eliminates manual mistakes  
-- **Clear Intent**: Users see exactly what will be tracked
-- **Faster Adoption**: Lower barrier to adding new domains
-- **Better UX**: Modern, intuitive interface with instant feedback

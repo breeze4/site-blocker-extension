@@ -86,6 +86,23 @@
     .secondary-button:hover {
       background-color: #1976D2;
     }
+    .actions-cell {
+      padding: 4px !important;
+    }
+    .actions-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      align-items: stretch;
+    }
+    .delete-button, .reset-tracking-button {
+      width: 100%;
+      min-width: 80px;
+      font-size: 11px;
+      padding: 4px 8px;
+      white-space: nowrap;
+      text-align: center;
+    }
     .delete-button {
       background-color: #f44336;
       color: white;
@@ -96,9 +113,6 @@
     .reset-tracking-button {
       background-color: #ff9800;
       color: white;
-      margin-left: 4px;
-      font-size: 12px;
-      padding: 6px 12px;
     }
     .reset-tracking-button:hover {
       background-color: #f57c00;
@@ -223,6 +237,47 @@
       color: #666666;
       cursor: not-allowed;
     }
+    .url-input-section {
+      margin-bottom: 20px;
+    }
+    .url-input {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #ddd;
+      border-radius: 4px;
+      font-size: 16px;
+      transition: border-color 0.2s ease;
+    }
+    .url-input:focus {
+      border-color: #4CAF50;
+      outline: none;
+    }
+    .url-preview {
+      margin-top: 8px;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 14px;
+      min-height: 20px;
+    }
+    .preview-placeholder {
+      color: #888;
+      font-style: italic;
+    }
+    .preview-success {
+      color: #2e7d32;
+      background-color: #e8f5e8;
+      border: 1px solid #c8e6c9;
+    }
+    .preview-warning {
+      color: #f57c00;
+      background-color: #fff3e0;
+      border: 1px solid #ffcc02;
+    }
+    .preview-error {
+      color: #d32f2f;
+      background-color: #ffebee;
+      border: 1px solid #ffcdd2;
+    }
   </style>
 </head>
 
@@ -248,7 +303,13 @@
 
   <h2>Add/Update a Site</h2>
   <form id="siteForm">
-    <input type="text" id="domainInput" placeholder="Enter domain (e.g., example.com)" required>
+    <div class="url-input-section">
+      <label for="urlInput">Add Site (paste any URL):</label>
+      <input type="text" id="urlInput" placeholder="Paste URL or domain (e.g., https://www.reddit.com/r/programming)" class="url-input" required>
+      <div class="url-preview" id="urlPreview">
+        <!-- Dynamic content based on input -->
+      </div>
+    </div>
     
     <div>
       <label>Time Allowed:</label>

@@ -64,7 +64,6 @@ function setToStorage(keyValuePairs) {
 function getFromStorage(key) {
   return new Promise((resolve, reject) => {
     chrome.storage.local.get(key, (result) => {
-      console.debug('Getting the domain timers', JSON.stringify(result))
       if (chrome.runtime.lastError) {
         reject(chrome.runtime.lastError);
       } else {
@@ -78,10 +77,8 @@ function getFromStorage(key) {
 async function getDomainTimers() {
   try {
     const domainTimers = await getFromStorage("domainTimers");
-    console.debug("Domain Timers:", domainTimers);
     return domainTimers;
   } catch (error) {
-    console.error("Error retrieving domainTimers:", error);
   }
   return null;
 }
@@ -90,10 +87,8 @@ async function getDomainTimers() {
 async function getTimeTracking() {
   try {
     const timeTracking = await getFromStorage("timeTracking");
-    console.debug("Time Tracking:", timeTracking);
     return timeTracking;
   } catch (error) {
-    console.error("Error retrieving timeTracking:", error);
   }
   return null;
 }
@@ -102,9 +97,7 @@ async function getTimeTracking() {
 async function saveDomainTimers(domainTimers) {
   try {
     await setToStorage({ domainTimers });
-    console.debug("Domain timers saved successfully.", domainTimers);
   } catch (error) {
-    console.error("Error saving domain timers:", error);
   }
 }
 
@@ -112,9 +105,7 @@ async function saveDomainTimers(domainTimers) {
 async function saveTimeTracking(timeTracking) {
   try {
     await setToStorage({ timeTracking });
-    console.debug("Time tracking saved successfully.", timeTracking);
   } catch (error) {
-    console.error("Error saving time tracking:", error);
   }
 }
 
@@ -136,10 +127,8 @@ async function initializeDomainTimeTracking(domain) {
       };
       
       await saveTimeTracking(timeTracking);
-      console.debug(`Initialized time tracking for domain: ${domain}`);
     }
   } catch (error) {
-    console.error(`Error initializing time tracking for domain ${domain}:`, error);
   }
 }
 
@@ -198,7 +187,6 @@ async function calculateTimeSpent(domain, period) {
         daysToCheck = 30;
         break;
       default:
-        console.error(`Unknown period: ${period}`);
         return 0;
     }
     
@@ -215,7 +203,6 @@ async function calculateTimeSpent(domain, period) {
     
     return totalSeconds;
   } catch (error) {
-    console.error(`Error calculating time spent for ${domain} over ${period}:`, error);
     return 0;
   }
 }
@@ -244,17 +231,14 @@ async function cleanupOldTimeTrackingData() {
         
         const newCount = Object.keys(data.dailyTotals).length;
         if (originalCount !== newCount) {
-          console.debug(`Cleaned up ${originalCount - newCount} old daily entries for ${domain}`);
         }
       }
     }
     
     if (dataChanged) {
       await saveTimeTracking(timeTracking);
-      console.debug('Completed cleanup of old time tracking data');
     }
   } catch (error) {
-    console.error('Error cleaning up old time tracking data:', error);
   }
 }
 
@@ -273,7 +257,6 @@ async function endIdleSessions() {
         if (timeSinceLastActive >= IDLE_TIMEOUT) {
           // Calculate session duration up to the idle point
           const sessionDuration = Math.floor((data.lastActiveTimestamp - data.currentSessionStart) / 1000);
-          console.debug(`Ending idle session for ${domain}, duration: ${sessionDuration} seconds`);
           
           // Save session duration to daily totals
           if (!data.dailyTotals) {
@@ -287,13 +270,11 @@ async function endIdleSessions() {
           // Clear the active session
           data.currentSessionStart = null;
           
-          console.debug(`Ended idle session for ${domain} on ${currentDate}: ${sessionDuration} seconds added`);
         }
       }
     }
     await saveTimeTracking(timeTracking);
   } catch (error) {
-    console.error('Error ending idle sessions:', error);
   }
 }
 
@@ -307,7 +288,6 @@ async function endAllActiveSessions() {
       if (data.currentSessionStart) {
         // Calculate session duration
         const sessionDuration = Math.floor((Date.now() - data.currentSessionStart) / 1000);
-        console.debug(`Ending session for ${domain}, duration: ${sessionDuration} seconds`);
         
         // Save session duration to daily totals
         if (!data.dailyTotals) {
@@ -322,12 +302,10 @@ async function endAllActiveSessions() {
         data.currentSessionStart = null;
         data.lastActiveTimestamp = Date.now();
         
-        console.debug(`Updated daily total for ${domain} on ${currentDate}: ${data.dailyTotals[currentDate]} seconds`);
       }
     }
     await saveTimeTracking(timeTracking);
   } catch (error) {
-    console.error('Error ending active sessions:', error);
   }
 }
 
@@ -351,7 +329,6 @@ async function handleTimerForTab(tab) {
 
   let domainTimers = await getDomainTimers();
   if (!domainTimers) {
-    console.error('Domain timers not defined for an unexpected reason');
     return;
   }
 
@@ -361,7 +338,6 @@ async function handleTimerForTab(tab) {
 
   const domainTimer = domainTimers[domain];
   if (!domainTimer) {
-    console.debug(`Not a domain being tracked: ${domain}`);
     return;
   }
 
@@ -374,7 +350,6 @@ async function handleTimerForTab(tab) {
     timeTracking[domain].currentSessionStart = Date.now();
     timeTracking[domain].lastActiveTimestamp = Date.now();
     await saveTimeTracking(timeTracking);
-    console.debug(`Started time tracking session for domain: ${domain}`);
   }
 
   if (domainTimer.timeLeft > 0) {
@@ -385,19 +360,16 @@ async function handleTimerForTab(tab) {
       domainTimers[domain].timeLeft = Math.max(0, domainTimer.timeLeft - elapsedSeconds);
       await saveDomainTimers(domainTimers);
 
-      console.debug(`Decreased time for ${domain} by ${elapsedSeconds} seconds`);
 
       if (domainTimers[domain].timeLeft <= 0) {
         clearInterval(activeTimerIntervalId);
         activeTimerIntervalId = null;
-        console.debug(`Time's up for ${domain}. Navigation is blocked.`);
         // Block navigation on the next attempt.
       }
     }, 1000);
   } else {
     // If time has already expired, block navigation.
     chrome.tabs.update(tab.id, { url: "chrome://newtab" });
-    console.debug(`Time's up for ${domain}. Navigation is blocked.`);
   }
 }
 
@@ -405,7 +377,6 @@ async function handleTimerForTab(tab) {
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
   chrome.tabs.get(activeInfo.tabId, async (tab) => {
     if (chrome.runtime.lastError) {
-      console.error(chrome.runtime.lastError.message);
       return;
     }
     await handleTimerForTab(tab);
@@ -425,7 +396,6 @@ chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
   // End all active sessions when any tab is closed
   // This ensures sessions don't remain "active" after tab closure
   await endAllActiveSessions();
-  console.debug(`Tab ${tabId} closed, ended all active time tracking sessions`);
 });
 
 // This function is called when the extension is first initialized.

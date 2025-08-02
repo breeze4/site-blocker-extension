@@ -131,7 +131,6 @@ async function checkDomainExists(domain) {
     const domainTimers = await StorageUtils.getFromStorage('domainTimers') || {};
     return domainTimers.hasOwnProperty(domain);
   } catch (error) {
-    console.error('Error checking domain existence:', error);
     return false;
   }
 }
@@ -235,7 +234,6 @@ document.getElementById('siteForm').addEventListener('submit', async (event) => 
       // Reset radio buttons to default selections
       document.getElementById('time5').checked = true;
     } catch (error) {
-      console.error('Error updating domain timer:', error);
     }
   }
 });
@@ -294,7 +292,6 @@ async function calculateTimeSpentInOptions(domain, period) {
     
     return totalSeconds;
   } catch (error) {
-    console.error(`Error calculating time spent for ${domain} over ${period}:`, error);
     return 0;
   }
 }
@@ -525,7 +522,6 @@ async function renderDomainList() {
       updateTimeTrackingCells(domain);
     }
   } catch (error) {
-    console.error('Error rendering domain list:', error);
   }
 }
 
@@ -562,7 +558,6 @@ async function updateTimeTrackingCells(domain) {
       cell.textContent = formatTimeTracking(timeSeconds);
     });
   } catch (error) {
-    console.error(`Error updating time tracking cells for ${domain}:`, error);
   }
 }
 
@@ -605,7 +600,6 @@ document.getElementById('domainListBody').addEventListener('click', async (event
           saveButton.disabled = true;
           renderDomainList();
         } catch (error) {
-          console.error('Error saving domain timer:', error);
         }
       }
     }
@@ -627,7 +621,6 @@ document.getElementById('domainListBody').addEventListener('click', async (event
       // Re-render the list of domains to reflect the changes.
       renderDomainList();
     } catch (error) {
-      console.error('Error deleting domain timer:', error);
     }
   }
 
@@ -658,10 +651,8 @@ document.getElementById('domainListBody').addEventListener('click', async (event
         // Update the time tracking display for this domain
         updateTimeTrackingCells(domainToReset);
         
-        console.debug(`Reset time tracking for domain: ${domainToReset}`);
       }
     } catch (error) {
-      console.error('Error resetting domain time tracking:', error);
     }
   }
 });
@@ -694,7 +685,6 @@ document.getElementById('resetTimersButton').addEventListener('click', async (ev
     // Re-render the domain list to show the updated timers.
     renderDomainList();
   } catch (error) {
-    console.error('Error resetting timers:', error);
   }
 
 });
@@ -726,9 +716,7 @@ document.getElementById('resetAllTrackingButton').addEventListener('click', asyn
     // Re-render the domain list to show the updated tracking data.
     renderDomainList();
     
-    console.debug('Reset all domain time tracking data');
   } catch (error) {
-    console.error('Error resetting all tracking data:', error);
   }
 });
 
@@ -750,7 +738,6 @@ document.getElementById('globalResetIntervalGroup').addEventListener('change', a
       await StorageUtils.setToStorage({ domainTimers });
       renderDomainList();
     } catch (error) {
-      console.error('Error updating global reset interval:', error);
     }
   }
 });
@@ -770,7 +757,6 @@ async function initializeGlobalResetInterval() {
       }
     }
   } catch (error) {
-    console.error('Error initializing global reset interval:', error);
   }
 }
 
@@ -820,7 +806,6 @@ async function updateTimeDisplays() {
       }
     });
   } catch (error) {
-    console.error('Error updating time displays:', error);
   }
 }
 

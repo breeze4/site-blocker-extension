@@ -14,7 +14,6 @@ async function checkDomainBlocked() {
       document.body.innerHTML = "<h1>Access Blocked</h1><p>Your time is up for this site.</p>";
     }
   } catch (error) {
-    console.error('Error checking domain blocked status:', error);
   }
 }
 

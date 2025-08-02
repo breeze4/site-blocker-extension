@@ -1,5 +1,8 @@
 // background.js
 
+// Import storage utilities for use in service worker
+importScripts('storage-utils.js');
+
 // Default timers for commonly used websites. These are used to initialize the extension's storage when it's first installed.
 let defaultDomainTimers = {
   'www.reddit.com': {
@@ -43,35 +46,6 @@ let defaultDomainTimers = {
 // This variable will hold the interval ID for the currently active timer. There should only be one timer running at any given time.
 let activeTimerIntervalId = null;
 
-// Import storage utilities (these are now defined in storage-utils.js)
-// Note: In service workers, we'll need to import the utilities differently
-// For now, we'll keep the local functions but could refactor to import later
-
-// A Promise-based wrapper for chrome.storage.local.set to allow for async/await syntax. This makes the code cleaner and easier to read.
-function setToStorage(keyValuePairs) {
-  return new Promise((resolve, reject) => {
-    chrome.storage.local.set(keyValuePairs, () => {
-      if (chrome.runtime.lastError) {
-        reject(chrome.runtime.lastError);
-      } else {
-        resolve();
-      }
-    });
-  });
-}
-
-// A Promise-based wrapper for chrome.storage.local.get, similar to setToStorage, for cleaner asynchronous operations.
-function getFromStorage(key) {
-  return new Promise((resolve, reject) => {
-    chrome.storage.local.get(key, (result) => {
-      if (chrome.runtime.lastError) {
-        reject(chrome.runtime.lastError);
-      } else {
-        resolve(result[key]);
-      }
-    });
-  });
-}
 
 // Asynchronously retrieves the domain timers from storage. This function serves as a single point of access to the stored timers.
 async function getDomainTimers() {

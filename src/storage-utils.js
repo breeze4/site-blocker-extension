@@ -27,7 +27,14 @@ function getFromStorage(key) {
 }
 
 // Export the functions for use in other modules
-window.StorageUtils = {
-  setToStorage,
-  getFromStorage
-};
+// Check if we're in a service worker environment (no window object)
+if (typeof window !== 'undefined') {
+  // Content script environment
+  window.StorageUtils = {
+    setToStorage,
+    getFromStorage
+  };
+} else {
+  // Service worker environment - functions are available globally
+  // No need to export since importScripts() makes functions global
+}

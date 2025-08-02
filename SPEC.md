@@ -143,3 +143,52 @@ The interface now features:
 - Real-time updates that don't disrupt user interactions
 - Professional appearance with consistent styling
 - Responsive layout that adapts to screen size
+
+# Feature: Async/Await Storage Refactor
+
+## 1. Problem
+
+The codebase currently uses callback-based `chrome.storage.local` operations throughout `options.js` and `content.js`, leading to:
+- Nested callback chains that reduce code readability
+- Inconsistent error handling patterns
+- Complex async control flow that's hard to maintain
+- Mix of callback and async patterns across different files
+
+## 2. Solution
+
+Modernize all storage operations to use async/await pattern for:
+- Improved code readability and maintainability
+- Consistent error handling with try/catch blocks
+- Simplified async control flow
+- Unified approach across all extension files
+
+## 3. Technical Implementation
+
+### Current State Analysis
+- **background.js**: Already has async wrappers (`setToStorage`, `getFromStorage`) ✅
+- **options.js**: 8 `chrome.storage.local.get` + 5 `chrome.storage.local.set` operations using callbacks
+- **content.js**: 1 `chrome.storage.local.get` operation using callback
+
+### Implementation Approach
+1. Create shared storage utility functions (reuse existing background.js patterns)
+2. Convert all storage operations in options.js to async/await
+3. Convert content.js storage operation to async/await  
+4. Test functionality and clean up callback code
+
+### Functions to Convert
+- Form submission handler
+- `renderDomainList()` function
+- Table save button handler
+- Delete button handler
+- Reset timers handler
+- Global reset interval change handler
+- Page load initialization
+- `updateTimeDisplays()` function
+- Content script domain check
+
+## 4. Expected Outcome
+
+- All storage operations will use consistent async/await pattern
+- Improved code readability with flattened async flow
+- Better error handling throughout the application
+- Modernized codebase following current JavaScript standards

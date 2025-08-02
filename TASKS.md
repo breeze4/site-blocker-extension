@@ -114,3 +114,37 @@ This checklist outlines the steps to make radio buttons always visible in table 
   - [x] **5.2.** Test changing radio button values and saving changes
   - [x] **5.3.** Test adding new domains and verify radio buttons appear correctly
   - [x] **5.4.** Verify save button activation works with radio button changes
+
+# Task List: Box-Style Radio Button Design and Save Button Relocation
+
+This checklist outlines the steps to improve radio button styling with clickable boxes and move the save button to the Time Allowed column.
+
+- [x] **1. Add CSS for Box-Style Radio Button Design**
+  - [x] **1.1.** Hide default radio button inputs with CSS
+  - [x] **1.2.** Style labels as clickable boxes with borders and padding
+  - [x] **1.3.** Add selected state styling for active radio buttons
+  - [x] **1.4.** Add hover state styling for better user feedback
+
+- [x] **2. Update HTML Structure for Box Design**
+  - [x] **2.1.** Modify radio button HTML to use label-wrapped design
+  - [x] **2.2.** Ensure full label area is clickable for radio button selection
+  - [x] **2.3.** Apply new CSS classes to radio button elements
+  - [x] **2.4.** Maintain accessibility with proper label associations
+
+- [x] **3. Move Save Button to Time Allowed Column**
+  - [x] **3.1.** Remove save button from Actions column HTML generation
+  - [x] **3.2.** Add save button to Time Allowed column after radio buttons
+  - [x] **3.3.** Update save button positioning and styling for column integration
+  - [x] **3.4.** Ensure save button state preservation works in new location
+
+- [x] **4. Update Table Layout and Actions Column**
+  - [x] **4.1.** Keep delete button in Actions column
+  - [x] **4.2.** Update Actions column to only contain delete button
+  - [x] **4.3.** Adjust table column widths for new save button placement
+  - [x] **4.4.** Ensure responsive design works with updated layout
+
+- [x] **5. Ensure Styling Works Within Table Constraints**
+  - [x] **5.1.** Test box-style radio buttons fit well in table cells
+  - [x] **5.2.** Verify styling is consistent across different screen sizes
+  - [x] **5.3.** Ensure save button integrates well with radio button styling
+  - [x] **5.4.** Check that all interactive elements remain accessible

@@ -69,11 +69,11 @@ function renderDomainList() {
     // Collect current state before clearing
     const existingRows = domainListBody.querySelectorAll('tr');
     existingRows.forEach(row => {
-      const domain = row.querySelector('.save-button')?.dataset.domain;
+      const domain = row.querySelector('.save-button-inline')?.dataset.domain;
       if (domain) {
         const timeRadio = row.querySelector('[data-field="originalTime"] input[type="radio"]:checked');
         const resetRadio = row.querySelector('[data-field="resetInterval"] input[type="radio"]:checked');
-        const saveButton = row.querySelector('.save-button');
+        const saveButton = row.querySelector('.save-button-inline');
         
         currentSelections[domain] = {
           timeValue: timeRadio ? timeRadio.value : null,
@@ -95,10 +95,13 @@ function renderDomainList() {
       const domainCell = document.createElement('td');
       domainCell.textContent = domain;
       
-      // Time Allowed cell with radio buttons
+      // Time Allowed cell with radio buttons and save button
       const timeAllowedCell = document.createElement('td');
       timeAllowedCell.className = 'radio-cell';
       timeAllowedCell.setAttribute('data-field', 'originalTime');
+      
+      const cellContent = document.createElement('div');
+      cellContent.className = 'radio-cell-content';
       
       const timeRadioGroup = document.createElement('div');
       timeRadioGroup.className = 'table-radio-group';
@@ -144,7 +147,16 @@ function renderDomainList() {
         timeRadioGroup.appendChild(radioOption);
       });
       
-      timeAllowedCell.appendChild(timeRadioGroup);
+      // Add save button to this column
+      const saveButton = document.createElement('button');
+      saveButton.className = 'save-button-inline';
+      saveButton.setAttribute('data-domain', domain);
+      saveButton.textContent = 'Save';
+      saveButton.disabled = true;
+      
+      cellContent.appendChild(timeRadioGroup);
+      cellContent.appendChild(saveButton);
+      timeAllowedCell.appendChild(cellContent);
       
       // Time Left cell (display only)
       const timeLeftCell = document.createElement('td');
@@ -204,10 +216,9 @@ function renderDomainList() {
       const lastResetCell = document.createElement('td');
       lastResetCell.textContent = new Date(lastResetTimestamp).toLocaleString();
       
-      // Actions cell
+      // Actions cell (only delete button now)
       const actionsCell = document.createElement('td');
       actionsCell.innerHTML = `
-        <button class="save-button" data-domain="${domain}" disabled>Save</button>
         <button class="delete-button" data-domain="${domain}">Delete</button>
       `;
       
@@ -220,7 +231,6 @@ function renderDomainList() {
       row.appendChild(actionsCell);
       
       // Restore save button state if it was previously enabled
-      const saveButton = row.querySelector('.save-button');
       if (saveButtonStates[domain]) {
         saveButton.disabled = false;
       }
@@ -247,7 +257,7 @@ document.getElementById('domainListBody').addEventListener('click', (event) => {
   // Radio buttons are now always visible in these columns
 
   // Logic to handle the save button click.
-  if (target.classList.contains('save-button')) {
+  if (target.classList.contains('save-button-inline')) {
     const domainToSave = target.dataset.domain;
     const row = target.closest('tr');
     

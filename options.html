@@ -70,31 +70,71 @@
     .table-radio-group {
       display: flex;
       flex-wrap: wrap;
-      gap: 6px;
+      gap: 4px;
       margin: 4px 0;
       justify-content: flex-start;
     }
     .table-radio-option {
-      display: flex;
-      align-items: center;
-      gap: 2px;
-      white-space: nowrap;
+      position: relative;
     }
     .table-radio-option input[type="radio"] {
-      margin: 0;
-      transform: scale(0.7);
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
     }
     .table-radio-option label {
+      display: inline-block;
+      padding: 6px 12px;
       margin: 0;
       cursor: pointer;
       font-size: 11px;
+      border: 2px solid #ddd;
+      border-radius: 4px;
+      background-color: #f9f9f9;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+      min-width: 40px;
+      text-align: center;
+    }
+    .table-radio-option label:hover {
+      border-color: #4CAF50;
+      background-color: #f0f8f0;
+    }
+    .table-radio-option input[type="radio"]:checked + label {
+      border-color: #4CAF50;
+      background-color: #4CAF50;
+      color: white;
+      font-weight: bold;
     }
     .radio-cell {
-      min-width: 280px;
+      min-width: 320px;
       padding: 4px;
-    }
-    td.radio-cell {
       vertical-align: top;
+    }
+    .radio-cell-content {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .save-button-inline {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 6px 12px;
+      cursor: pointer;
+      font-size: 12px;
+      align-self: flex-start;
+      transition: background-color 0.2s ease;
+    }
+    .save-button-inline:hover:not(:disabled) {
+      background-color: #45a049;
+    }
+    .save-button-inline:disabled {
+      background-color: #cccccc;
+      color: #666666;
+      cursor: not-allowed;
     }
   </style>
 </head>
@@ -176,7 +216,7 @@
     <thead>
       <tr>
         <th>Domain</th>
-        <th>Time Allowed (min)</th>
+        <th>Time Allowed</th>
         <th>Time Left</th>
         <th>Reset Interval (hr)</th>
         <th>Last Reset</th>

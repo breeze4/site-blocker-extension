@@ -24,4 +24,4 @@ When executing and writing code for tasks, make sure to check each item off the 
 
 Before doing any coding, print out the tasks to be done and then ask if the tasks should be in TASKS.md or if console-only tasks are sufficient. Write the task list first and then ask for confirmation. Ask for confirmation with `y? n?` and if a `y` or `yes` or something meaning "yes" then put tasks into the TASKS.md file. If anything else, just do console-only tasks. Make sure you actually wait for my input before proceeding here!
 
-For testing, just give me the instructions for what to test. I will do it myself. Do not launch servers or browsers to test.
+For testing, just give me the instructions for what to test. I will do it myself. Do not launch servers or browsers to test. Don't include manual test steps in task lists, ever.

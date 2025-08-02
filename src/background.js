@@ -51,8 +51,10 @@ let activeTimerIntervalId = null;
 async function getDomainTimers() {
   try {
     const domainTimers = await getFromStorage("domainTimers");
+    debugLog('Retrieved domain timers:', domainTimers);
     return domainTimers;
   } catch (error) {
+    debugLog('Error retrieving domain timers:', error);
   }
   return null;
 }
@@ -285,6 +287,8 @@ async function endAllActiveSessions() {
 
 // This function contains the core logic for starting and stopping timers based on the active tab.
 async function handleTimerForTab(tab) {
+  debugLog('Handling timer for tab:', tab?.url);
+  
   // End any active time tracking sessions before starting new one
   await endAllActiveSessions();
   
@@ -292,15 +296,17 @@ async function handleTimerForTab(tab) {
   if (activeTimerIntervalId) {
     clearInterval(activeTimerIntervalId);
     activeTimerIntervalId = null;
+    debugLog('Cleared previous timer');
   }
 
   if (!tab || !tab.url) {
-    // No tab or URL, so clear any running timer
+    debugLog('No tab or URL, clearing timer');
     return;
   }
 
   const url = new URL(tab.url);
   const domain = url.hostname;
+  debugLog('Processing domain:', domain);
 
   let domainTimers = await getDomainTimers();
   if (!domainTimers) {
@@ -313,8 +319,11 @@ async function handleTimerForTab(tab) {
 
   const domainTimer = domainTimers[domain];
   if (!domainTimer) {
+    debugLog('No timer configured for domain:', domain);
     return;
   }
+
+  debugLog('Found timer for domain:', domain, 'Time left:', domainTimer.timeLeft);
 
   // Initialize time tracking for this domain and start session
   await initializeDomainTimeTracking(domain);
@@ -325,20 +334,24 @@ async function handleTimerForTab(tab) {
     timeTracking[domain].currentSessionStart = Date.now();
     timeTracking[domain].lastActiveTimestamp = Date.now();
     await saveTimeTracking(timeTracking);
+    debugLog('Started time tracking session for:', domain);
   }
 
   if (domainTimer.timeLeft > 0) {
+    debugLog('Starting timer countdown for:', domain, 'seconds remaining:', domainTimer.timeLeft);
     activeTimerIntervalId = setInterval(async () => {
       domainTimers[domain].timeLeft = Math.max(0, domainTimers[domain].timeLeft - 1);
       await saveDomainTimers(domainTimers);
 
       if (domainTimers[domain].timeLeft <= 0) {
+        debugLog('Timer expired for domain:', domain);
         clearInterval(activeTimerIntervalId);
         activeTimerIntervalId = null;
         // Block navigation on the next attempt.
       }
     }, 1000);
   } else {
+    debugLog('Timer already expired for domain:', domain, 'blocking navigation');
     // If time has already expired, block navigation.
     chrome.tabs.update(tab.id, { url: "chrome://newtab" });
   }
@@ -407,14 +420,18 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 
 // This function is called when the extension is first initialized.
 async function initialize() {
+  debugLog('Initializing Site Blocker extension', 'Debug mode:', isDebugMode);
+  
   const timers = await getDomainTimers();
   if (!timers) {
+    debugLog('No existing timers found, initializing with defaults');
     await setToStorage({ domainTimers: defaultDomainTimers });
   }
   
   // Initialize time tracking storage if it doesn't exist
   const timeTracking = await getFromStorage("timeTracking");
   if (!timeTracking) {
+    debugLog('Initializing time tracking storage');
     await setToStorage({ timeTracking: {} });
   }
   
@@ -423,6 +440,7 @@ async function initialize() {
   
   // Set up idle detection - check every 30 seconds for sessions idle longer than 2 minutes
   setInterval(endIdleSessions, 30 * 1000);
+  debugLog('Extension initialization complete');
 }
 
 // This starts the extension.

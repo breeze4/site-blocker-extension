@@ -192,3 +192,162 @@ Modernize all storage operations to use async/await pattern for:
 - Improved code readability with flattened async flow
 - Better error handling throughout the application
 - Modernized codebase following current JavaScript standards
+
+# Feature: Time Tracking Analytics
+
+## 1. Problem
+
+Users want to understand their actual usage patterns beyond just the time limits. They need visibility into:
+- How much time they've actually spent on tracked domains over different time periods
+- Historical usage patterns to make informed decisions about time limits
+- Ability to reset tracking data when starting fresh
+
+Currently, the extension only tracks remaining time against limits, but doesn't provide analytics on actual time spent.
+
+## 2. Solution
+
+Implement a comprehensive time tracking system that records actual time spent on domains and displays analytics in multiple time buckets:
+- Last 24 hours (rolling window)
+- Last 7 days (rolling window) 
+- Last 30 days (rolling window)
+- All time (since tracking started or last reset)
+
+## 3. Technical Implementation
+
+### Data Structure
+
+#### Time Tracking Storage
+```javascript
+timeTracking: {
+  'domain.com': {
+    dailyTotals: {
+      '2025-08-02': 3600,    // seconds spent on this date
+      '2025-08-01': 1800,    // ISO date string as key
+      '2025-07-31': 2400,
+      // ... historical daily totals
+    },
+    allTimeTotal: 7800,      // total seconds since tracking started
+    trackingStartDate: '2025-07-01',  // when tracking began for this domain
+    lastResetDate: '2025-07-01',      // when tracking was last reset
+    currentSessionStart: null,         // timestamp when current session started
+    lastActiveTimestamp: 1691856000000 // last time domain was active (for cleanup)
+  }
+}
+```
+
+### Time Tracking Logic
+
+#### Session Management
+- **Session Start**: When user navigates to a tracked domain, record `currentSessionStart` timestamp
+- **Session Update**: Every 5 seconds while domain is active, update session time
+- **Session End**: When user navigates away or closes tab, calculate session duration and add to daily total
+- **Idle Detection**: If no activity for 2 minutes, end current session
+
+#### Daily Aggregation
+- Store time in daily buckets for efficient storage and calculation
+- Update `dailyTotals` for current date when sessions end
+- Update `allTimeTotal` with session duration
+- Clean up old daily data beyond 30 days automatically
+
+#### Rolling Window Calculations
+- **Last 24h**: Sum time from current partial day + previous day(s) within 24 hour window
+- **Last 7d**: Sum daily totals for last 7 complete days + current partial day  
+- **Last 30d**: Sum daily totals for last 30 complete days + current partial day
+- **All Time**: Use stored `allTimeTotal` value
+
+### Storage Considerations
+
+#### Efficiency
+- Store only daily totals, not individual sessions
+- Automatic cleanup of data older than 30 days
+- Estimated storage per domain: ~1KB for 30 days of daily data
+
+#### Persistence
+- Data stored in `chrome.storage.local` alongside existing timer data
+- Survives extension reloads, browser restarts, and updates
+- No external dependencies or cloud storage needed
+
+### User Interface Changes
+
+#### Options Table Enhancements
+Add new columns to the tracked sites table:
+
+| Column | Content | Width |
+|--------|---------|-------|
+| Domain | Existing | 15% |
+| Time Allowed | Existing | 25% |
+| Time Left | Existing | 10% |
+| Last 24h | Time spent in last 24 hours | 10% |
+| Last 7d | Time spent in last 7 days | 10% |
+| Last 30d | Time spent in last 30 days | 10% |
+| All Time | Total time spent since tracking started | 10% |
+| Last Reset | Existing | 10% |
+| Actions | Delete + Reset Tracking buttons | 10% |
+
+#### New Functionality
+- **Reset Tracking Button**: Individual reset per domain
+- **Reset All Tracking Button**: Global reset for all domains
+- **Time Format**: Display as "Xh Ym" for hours/minutes, "Xm Ys" for minutes/seconds
+
+### Background Script Integration
+
+#### Timer Integration
+- Integrate time tracking with existing timer logic in `background.js`
+- When timer is active for a domain, also track actual time spent
+- Use existing tab monitoring events (`chrome.tabs.onUpdated`, `chrome.tabs.onActivated`)
+
+#### Session Management
+```javascript
+// Extend existing handleTimerForTab function
+async function handleTimerForTab(tab) {
+  // ... existing timer logic ...
+  
+  // Add time tracking
+  await trackTimeSession(domain, 'start');
+}
+
+// New time tracking functions
+async function trackTimeSession(domain, action) { /* ... */ }
+async function updateTimeTracking(domain, sessionDuration) { /* ... */ }
+async function calculateTimeSpent(domain, period) { /* ... */ }
+```
+
+### Reset Functionality
+
+#### Individual Domain Reset
+- Clear `dailyTotals` for the domain
+- Reset `allTimeTotal` to 0
+- Update `lastResetDate` to current date
+- Keep `trackingStartDate` for reference
+
+#### Global Reset
+- Reset tracking data for all domains
+- Preserve domain timer settings (originalTime, timeLeft, etc.)
+- Update all `lastResetDate` values
+
+### Implementation Phases
+
+#### Phase 1: Data Structure & Background Tracking
+- Implement time tracking data structure
+- Add session management to background script  
+- Store daily totals automatically
+
+#### Phase 2: UI Integration
+- Add new columns to options table
+- Implement time calculation and display
+- Add individual reset buttons
+
+#### Phase 3: Global Controls
+- Add global reset functionality
+- Add bulk time tracking controls
+- Polish UI and add responsive behavior
+
+## 4. Expected Outcome
+
+Users will have comprehensive visibility into their actual time usage patterns:
+- **Behavioral Insights**: See actual vs. intended usage patterns
+- **Data-Driven Decisions**: Adjust time limits based on real usage data  
+- **Progress Tracking**: Monitor improvements over time
+- **Flexible Reset**: Start fresh when needed without losing timer configurations
+
+The feature will integrate seamlessly with existing timer functionality while providing valuable analytics for informed digital wellness decisions.

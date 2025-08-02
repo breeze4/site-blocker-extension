@@ -541,6 +541,11 @@ Preview: ✓ Will track: reddit.com
 2. **See Preview**: Instantly see what domain will be tracked
 3. **Add Domain**: One-click addition with time limit selection
 
+### Domain-Based Table Sorting
+- Table rows sorted by base domain (not subdomain)
+- Related domains grouped together (e.g., `reddit.com`, `www.reddit.com`, `old.reddit.com`)
+- Maintains logical organization as users add multiple subdomains
+
 ## Future Enhancements
 
 ### Smart Suggestions

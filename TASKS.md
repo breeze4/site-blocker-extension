@@ -62,15 +62,20 @@ This checklist implements intelligent URL parsing input following atomic, increm
   - [ ] **10.2.** Handle edge cases like malformed URLs, special characters
   - [ ] **10.3.** Ensure graceful fallback for any parsing failures
 
-- [ ] **11. Add Input Clear and Reset**
-  - [ ] **11.1.** Clear input and preview after successful domain addition
-  - [ ] **11.2.** Reset preview to placeholder state when input is empty
-  - [ ] **11.3.** Maintain smooth user experience for multiple additions
+- [ ] **11. Add Domain-Based Table Sorting**
+  - [ ] **11.1.** Create base domain extraction function for sorting purposes
+  - [ ] **11.2.** Update table rendering to sort domains by base domain first, then subdomain
+  - [ ] **11.3.** Ensure related domains group together (reddit.com, www.reddit.com, old.reddit.com)
 
-- [ ] **12. Final Integration and Testing**
-  - [ ] **12.1.** Verify all URL formats work correctly with real-world examples
-  - [ ] **12.2.** Ensure existing domain management functionality remains intact
-  - [ ] **12.3.** Test edge cases and error scenarios for robust behavior
+- [ ] **12. Add Input Clear and Reset**
+  - [ ] **12.1.** Clear input and preview after successful domain addition
+  - [ ] **12.2.** Reset preview to placeholder state when input is empty
+  - [ ] **12.3.** Maintain smooth user experience for multiple additions
+
+- [ ] **13. Final Integration and Testing**
+  - [ ] **13.1.** Verify all URL formats work correctly with real-world examples
+  - [ ] **13.2.** Ensure existing domain management functionality remains intact
+  - [ ] **13.3.** Test edge cases and error scenarios for robust behavior
 
 ---
 

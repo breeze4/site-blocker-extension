@@ -519,8 +519,20 @@ async function renderDomainList() {
       }
       
       // Add change event listeners to radio buttons
-      timeRadioGroup.addEventListener('change', () => {
-        saveButton.disabled = false;
+      timeRadioGroup.addEventListener('change', async () => {
+        // Check if the selected value is different from the stored value
+        const selectedRadio = timeRadioGroup.querySelector('input[type="radio"]:checked');
+        if (selectedRadio) {
+          const selectedMinutes = parseInt(selectedRadio.value, 10);
+          const selectedSeconds = selectedMinutes * 60;
+          
+          // Get current stored value
+          const domainTimers = await StorageUtils.getFromStorage('domainTimers') || {};
+          const storedSeconds = domainTimers[domain]?.originalTime || 0;
+          
+          // Only enable save button if value actually changed
+          saveButton.disabled = (selectedSeconds === storedSeconds);
+        }
       });
 
       domainListBody.appendChild(row);
@@ -593,21 +605,51 @@ document.getElementById('domainListBody').addEventListener('click', async (event
 
         try {
           const domainTimers = await StorageUtils.getFromStorage('domainTimers') || {};
+          let timeChanged = false;
+          
           if (domainTimers[domainToSave]) {
+            // Check if the time setting actually changed
+            const oldOriginalTime = domainTimers[domainToSave].originalTime;
+            const currentTimeLeft = domainTimers[domainToSave].timeLeft;
+            timeChanged = oldOriginalTime !== originalTimeInSeconds;
+            
+            // Determine if we need to reset the timer
+            // Reset if: 
+            // 1. The originalTime setting changed (user selected different time)
+            // 2. Current timeLeft is greater than the new originalTime (need to cap it)
+            const needsReset = timeChanged || currentTimeLeft > originalTimeInSeconds;
+            
             domainTimers[domainToSave].originalTime = originalTimeInSeconds;
-            // Also update timeLeft if the originalTime is changed, to avoid confusion.
-            domainTimers[domainToSave].timeLeft = originalTimeInSeconds;
             domainTimers[domainToSave].resetInterval = resetInterval;
-            domainTimers[domainToSave].lastResetTimestamp = Date.now();
+            
+            // Reset timer when needed
+            if (needsReset) {
+              domainTimers[domainToSave].timeLeft = originalTimeInSeconds;
+              domainTimers[domainToSave].lastResetTimestamp = Date.now();
+              domainTimers[domainToSave].expiredMessageLogged = false;
+              // Update timeChanged to reflect that we did reset (for background notification)
+              timeChanged = true;
+            }
           }
           
           await StorageUtils.setToStorage({ domainTimers });
           
+          // Notify background script to restart timer if settings changed
+          if (timeChanged) {
+            try {
+              await chrome.runtime.sendMessage({ action: 'timerSettingsChanged' });
+            } catch (error) {
+              console.error('Error notifying background script:', error);
+            }
+          }
+          
           // Disable the save button after successful save
-          const saveButton = target;
-          saveButton.disabled = true;
-          renderDomainList();
+          target.disabled = true;
+          
+          // Update only the time displays without re-rendering the whole list
+          await updateTimeDisplays();
         } catch (error) {
+          console.error('Error saving timer settings:', error);
         }
       }
     }

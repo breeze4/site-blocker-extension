@@ -355,14 +355,48 @@ async function handleTimerForTab(tab) {
   if (domainTimer.timeLeft > 0) {
     debugLog('Starting timer countdown for:', domain, 'seconds remaining:', domainTimer.timeLeft);
     activeTimerIntervalId = setInterval(async () => {
-      domainTimers[domain].timeLeft = Math.max(0, domainTimers[domain].timeLeft - 1);
-      await saveDomainTimers(domainTimers);
+      // Check if the current active tab is still on this domain
+      try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tabs.length === 0 || !tabs[0].url) {
+          // No active tab or no URL, stop the timer
+          clearInterval(activeTimerIntervalId);
+          activeTimerIntervalId = null;
+          return;
+        }
+        
+        const activeUrl = new URL(tabs[0].url);
+        const activeDomain = activeUrl.hostname;
+        
+        // If we've switched to a different domain, stop this timer
+        if (activeDomain !== domain) {
+          clearInterval(activeTimerIntervalId);
+          activeTimerIntervalId = null;
+          return;
+        }
+      } catch (error) {
+        // Error checking active tab, stop the timer
+        clearInterval(activeTimerIntervalId);
+        activeTimerIntervalId = null;
+        return;
+      }
+      
+      // Re-read timers from storage to get any updates from options page
+      const currentTimers = await getDomainTimers();
+      if (!currentTimers || !currentTimers[domain]) {
+        clearInterval(activeTimerIntervalId);
+        activeTimerIntervalId = null;
+        return;
+      }
+      
+      currentTimers[domain].timeLeft = Math.max(0, currentTimers[domain].timeLeft - 1);
+      await saveDomainTimers(currentTimers);
 
-      if (domainTimers[domain].timeLeft <= 0) {
-        if (!domainTimers[domain].expiredMessageLogged) {
+      if (currentTimers[domain].timeLeft <= 0) {
+        if (!currentTimers[domain].expiredMessageLogged) {
           debugLog('Timer expired for domain:', domain);
-          domainTimers[domain].expiredMessageLogged = true;
-          await saveDomainTimers(domainTimers);
+          currentTimers[domain].expiredMessageLogged = true;
+          await saveDomainTimers(currentTimers);
         }
         clearInterval(activeTimerIntervalId);
         activeTimerIntervalId = null;
@@ -439,15 +473,33 @@ chrome.windows.onFocusChanged.addListener(async (windowId) => {
 
 // Listen for when a tab is closed to end any active time tracking sessions
 chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
-  // Stop any running timer when a tab is closed
-  if (activeTimerIntervalId) {
-    clearInterval(activeTimerIntervalId);
-    activeTimerIntervalId = null;
+  try {
+    // Check if the closed tab was the active tab with a timer running
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    
+    // If no active tabs left (e.g., the closed tab was the last/only active one)
+    // or if we had a timer running, we should stop it
+    if (activeTimerIntervalId) {
+      // Get info about what domain the timer was for before clearing
+      clearInterval(activeTimerIntervalId);
+      activeTimerIntervalId = null;
+      
+      // End all active sessions when a tracked tab is closed
+      await endAllActiveSessions();
+      
+      // Check if there's a new active tab to handle
+      if (tabs.length > 0) {
+        await handleTimerForTab(tabs[0]);
+      }
+    }
+  } catch (error) {
+    // If there's an error, ensure timer is stopped
+    if (activeTimerIntervalId) {
+      clearInterval(activeTimerIntervalId);
+      activeTimerIntervalId = null;
+    }
+    await endAllActiveSessions();
   }
-  
-  // End all active sessions when any tab is closed
-  // This ensures sessions don't remain "active" after tab closure
-  await endAllActiveSessions();
 });
 
 // Handle onboarding for new users
@@ -456,6 +508,26 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     // First time installation - show onboarding
     chrome.tabs.create({ url: chrome.runtime.getURL('options.html?onboarding=true') });
   }
+});
+
+// Listen for messages from options page to restart timer when settings change
+chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
+  if (request.action === 'timerSettingsChanged') {
+    debugLog('Timer settings changed, restarting timer for current tab');
+    
+    // Get the current active tab and restart its timer
+    try {
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tabs.length > 0) {
+        await handleTimerForTab(tabs[0]);
+      }
+    } catch (error) {
+      debugLog('Error restarting timer after settings change:', error);
+    }
+    
+    sendResponse({ success: true });
+  }
+  return true; // Keep message channel open for async response
 });
 
 // This function is called when the extension is first initialized.

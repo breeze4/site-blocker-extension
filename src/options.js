@@ -1,5 +1,15 @@
 // This script handles the logic for the options page, allowing users to configure the site blocker.
 
+// Import timer utilities - load dynamically to work in both browser and test environments
+let TimerUtils = null;
+if (typeof module !== 'undefined' && require) {
+  // Node.js environment (tests)
+  TimerUtils = require('./timer-utils.js');
+} else if (typeof window !== 'undefined') {
+  // Browser environment - we'll need to include timer-utils.js in the extension
+  // For now, keep existing functions until we can properly bundle
+}
+
 // URL parsing utility function for streamlined URL input
 function parseURL(input) {
   // Normalize input
@@ -608,27 +618,32 @@ document.getElementById('domainListBody').addEventListener('click', async (event
           let timeChanged = false;
           
           if (domainTimers[domainToSave]) {
-            // Check if the time setting actually changed
-            const oldOriginalTime = domainTimers[domainToSave].originalTime;
-            const currentTimeLeft = domainTimers[domainToSave].timeLeft;
-            timeChanged = oldOriginalTime !== originalTimeInSeconds;
-            
-            // Determine if we need to reset the timer
-            // Reset if: 
-            // 1. The originalTime setting changed (user selected different time)
-            // 2. Current timeLeft is greater than the new originalTime (need to cap it)
-            const needsReset = timeChanged || currentTimeLeft > originalTimeInSeconds;
-            
-            domainTimers[domainToSave].originalTime = originalTimeInSeconds;
-            domainTimers[domainToSave].resetInterval = resetInterval;
-            
-            // Reset timer when needed
-            if (needsReset) {
-              domainTimers[domainToSave].timeLeft = originalTimeInSeconds;
-              domainTimers[domainToSave].lastResetTimestamp = Date.now();
-              domainTimers[domainToSave].expiredMessageLogged = false;
-              // Update timeChanged to reflect that we did reset (for background notification)
-              timeChanged = true;
+            // Use extracted timer utility function if available (in tests)
+            if (TimerUtils && TimerUtils.applyTimerSettingsChange) {
+              const result = TimerUtils.applyTimerSettingsChange(
+                domainTimers[domainToSave], 
+                originalTimeInSeconds, 
+                resetInterval
+              );
+              domainTimers[domainToSave] = result.timerData;
+              timeChanged = result.wasReset;
+            } else {
+              // Fallback to inline logic for browser environment
+              const oldOriginalTime = domainTimers[domainToSave].originalTime;
+              const currentTimeLeft = domainTimers[domainToSave].timeLeft;
+              timeChanged = oldOriginalTime !== originalTimeInSeconds;
+              
+              const needsReset = timeChanged || currentTimeLeft > originalTimeInSeconds;
+              
+              domainTimers[domainToSave].originalTime = originalTimeInSeconds;
+              domainTimers[domainToSave].resetInterval = resetInterval;
+              
+              if (needsReset) {
+                domainTimers[domainToSave].timeLeft = originalTimeInSeconds;
+                domainTimers[domainToSave].lastResetTimestamp = Date.now();
+                domainTimers[domainToSave].expiredMessageLogged = false;
+                timeChanged = true;
+              }
             }
           }
           

@@ -1,0 +1,30 @@
+{
+  "name": "site-blocker-extension",
+  "version": "1.0.0",
+  "description": "A Chrome extension for time-based website blocking with comprehensive usage analytics.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/breeze4/site-blocker-extension.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/breeze4/site-blocker-extension/issues"
+  },
+  "homepage": "https://github.com/breeze4/site-blocker-extension#readme",
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.4",
+    "jest": "^30.0.5",
+    "jest-environment-jsdom": "^30.0.5"
+  }
+}

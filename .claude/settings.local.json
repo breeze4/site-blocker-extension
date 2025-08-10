@@ -4,7 +4,11 @@
       "Bash(sed:*)",
       "Bash(mkdir:*)",
       "Bash(mv:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(npm init:*)",
+      "Bash(npm install:*)",
+      "Bash(npm test)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }

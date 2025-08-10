@@ -36,22 +36,6 @@ When you want very limited access to sites, just enough to view random links you
 * Smart handling of subdomains and www prefixes
 * Domain-based table sorting for logical organization
 
-## Planned Features
-
-### Subdomain Support (Next Feature)
-* Automatic blocking of subdomains when parent domain is tracked
-* Intelligent domain matching and grouping
-
-### Enhanced Analytics
-* Weekly/monthly usage reports
-* Goal setting and progress tracking
-* Export functionality for usage data
-
-### Advanced Blocking
-* Configurable warning messages before blocking
-* Temporary bypass functionality
-* Whitelist specific pages within blocked domains
-
 ## Technical Specifications
 
 This is a Chrome extension designed to limit the time spent on specific websites.

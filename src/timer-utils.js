@@ -208,4 +208,16 @@ if (typeof module !== 'undefined' && module.exports) {
     formatTime,
     formatTimeTracking
   };
+} else {
+  // Browser environment - make functions globally available
+  window.TimerUtils = {
+    shouldResetTimer,
+    applyTimerSettingsChange,
+    checkAndResetIfIntervalPassed,
+    decrementTimer,
+    parseURL,
+    validateDomain,
+    formatTime,
+    formatTimeTracking
+  };
 }

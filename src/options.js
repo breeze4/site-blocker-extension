@@ -5,9 +5,9 @@ let TimerUtils = null;
 if (typeof module !== 'undefined' && require) {
   // Node.js environment (tests)
   TimerUtils = require('./timer-utils.js');
-} else if (typeof window !== 'undefined') {
-  // Browser environment - we'll need to include timer-utils.js in the extension
-  // For now, keep existing functions until we can properly bundle
+} else if (typeof window !== 'undefined' && window.TimerUtils) {
+  // Browser environment - use global TimerUtils from timer-utils.js
+  TimerUtils = window.TimerUtils;
 }
 
 // URL parsing utility function for streamlined URL input

@@ -1,7 +1,7 @@
 // background.js
 
 // Import storage utilities for use in service worker
-importScripts('storage-utils.js');
+importScripts('storage-utils.js', 'timer-utils.js');
 
 // Default timers for commonly used websites. These are used to initialize the extension's storage when it's first installed.
 let defaultDomainTimers = {
@@ -119,13 +119,19 @@ async function resetTimersIfNeeded(domainTimers) {
   const currentTime = Date.now();
 
   for (const [domain, timerData] of Object.entries(domainTimers)) {
-    const resetIntervalMs = timerData.resetInterval * 60 * 60 * 1000;
-    const resetCanHappenAfterTimestamp = timerData.lastResetTimestamp + resetIntervalMs;
-    if (currentTime >= resetCanHappenAfterTimestamp) {
-      timerData.timeLeft = timerData.originalTime;
-      timerData.lastResetTimestamp = currentTime;
-      timerData.expiredMessageLogged = false;
-      domainTimers[domain] = timerData;
+    // Use TimerUtils function if available (should be available after importScripts)
+    if (typeof TimerUtils !== 'undefined' && TimerUtils.checkAndResetIfIntervalPassed) {
+      domainTimers[domain] = TimerUtils.checkAndResetIfIntervalPassed(timerData, currentTime);
+    } else {
+      // Fallback to original logic
+      const resetIntervalMs = timerData.resetInterval * 60 * 60 * 1000;
+      const resetCanHappenAfterTimestamp = timerData.lastResetTimestamp + resetIntervalMs;
+      if (currentTime >= resetCanHappenAfterTimestamp) {
+        timerData.timeLeft = timerData.originalTime;
+        timerData.lastResetTimestamp = currentTime;
+        timerData.expiredMessageLogged = false;
+        domainTimers[domain] = timerData;
+      }
     }
   }
   return domainTimers;
@@ -389,14 +395,22 @@ async function handleTimerForTab(tab) {
         return;
       }
       
-      currentTimers[domain].timeLeft = Math.max(0, currentTimers[domain].timeLeft - 1);
+      // Use TimerUtils to decrement if available
+      if (typeof TimerUtils !== 'undefined' && TimerUtils.decrementTimer) {
+        currentTimers[domain] = TimerUtils.decrementTimer(currentTimers[domain]);
+      } else {
+        // Fallback to original logic
+        currentTimers[domain].timeLeft = Math.max(0, currentTimers[domain].timeLeft - 1);
+        if (currentTimers[domain].timeLeft <= 0 && !currentTimers[domain].expiredMessageLogged) {
+          currentTimers[domain].expiredMessageLogged = true;
+        }
+      }
+      
       await saveDomainTimers(currentTimers);
 
       if (currentTimers[domain].timeLeft <= 0) {
-        if (!currentTimers[domain].expiredMessageLogged) {
+        if (currentTimers[domain].expiredMessageLogged) {
           debugLog('Timer expired for domain:', domain);
-          currentTimers[domain].expiredMessageLogged = true;
-          await saveDomainTimers(currentTimers);
         }
         clearInterval(activeTimerIntervalId);
         activeTimerIntervalId = null;

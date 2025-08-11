@@ -208,9 +208,21 @@ if (typeof module !== 'undefined' && module.exports) {
     formatTime,
     formatTimeTracking
   };
-} else {
+} else if (typeof window !== 'undefined') {
   // Browser environment - make functions globally available
   window.TimerUtils = {
+    shouldResetTimer,
+    applyTimerSettingsChange,
+    checkAndResetIfIntervalPassed,
+    decrementTimer,
+    parseURL,
+    validateDomain,
+    formatTime,
+    formatTimeTracking
+  };
+} else {
+  // Service worker environment - make functions globally available
+  globalThis.TimerUtils = {
     shouldResetTimer,
     applyTimerSettingsChange,
     checkAndResetIfIntervalPassed,

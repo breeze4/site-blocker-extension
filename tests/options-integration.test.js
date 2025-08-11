@@ -16,12 +16,13 @@ global.chrome.runtime.sendMessage = jest.fn(() => Promise.resolve());
 // We need to extract the save logic into a testable function
 describe('Options.js Integration', () => {
   let mockDomainTimers;
+  const exampleDomain = 'example.com';
 
   beforeEach(() => {
     jest.clearAllMocks();
     
     mockDomainTimers = {
-      'example.com': {
+      [exampleDomain]: {
         originalTime: 600, // 10 minutes  
         timeLeft: 450,     // 7.5 minutes left
         resetInterval: 24,
@@ -39,8 +40,7 @@ describe('Options.js Integration', () => {
   test('timer settings change uses correct logic in test environment', async () => {
     const { applyTimerSettingsChange } = require('../src/timer-utils');
     
-    const domain = 'example.com';
-    const currentTimer = mockDomainTimers[domain];
+    const currentTimer = mockDomainTimers[exampleDomain];
     const newTimeInSeconds = 300; // Change from 10m to 5m
     
     // This is what should happen in options.js when TimerUtils is available
@@ -56,8 +56,7 @@ describe('Options.js Integration', () => {
   test('save button enable/disable logic works correctly', async () => {
     const { applyTimerSettingsChange } = require('../src/timer-utils');
     
-    const domain = 'example.com';
-    const currentTimer = mockDomainTimers[domain];
+    const currentTimer = mockDomainTimers[exampleDomain];
     
     // Test same value (should not reset)
     const sameValue = applyTimerSettingsChange(currentTimer, 600, 24); // Same as current

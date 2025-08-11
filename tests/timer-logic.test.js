@@ -60,6 +60,39 @@ describe('Timer Logic', () => {
       expect(timerData.lastResetTimestamp).toBeGreaterThan(mockTimer.lastResetTimestamp);
     });
 
+    // Bug fix: Timer with 9m left, change from 10m to 5m setting → should reset to 5m
+    test('should reset timer with 9m left when changing from 10m to 5m setting', () => {
+      const timer = {
+        originalTime: 600, // 10 minutes setting
+        timeLeft: 540,     // 9 minutes remaining  
+        resetInterval: 24,
+        lastResetTimestamp: Date.now() - (60 * 1000), // 1 minute ago
+        expiredMessageLogged: false
+      };
+
+      const { timerData, wasReset } = applyTimerSettingsChange(timer, 300, 24); // Change to 5m
+
+      expect(wasReset).toBe(true);
+      expect(timerData.timeLeft).toBe(300); // Should be 5m, not 9m
+      expect(timerData.originalTime).toBe(300);
+    });
+
+    // Bug fix: Timer with 3m left, change from 5m to 1m setting → should reset to 1m
+    test('should reset timer with 3m left when changing from 5m to 1m setting', () => {
+      const timer = {
+        originalTime: 300, // 5 minutes setting
+        timeLeft: 180,     // 3 minutes remaining
+        resetInterval: 24,
+        lastResetTimestamp: Date.now() - (120 * 1000), // 2 minutes ago  
+        expiredMessageLogged: false
+      };
+
+      const { timerData, wasReset } = applyTimerSettingsChange(timer, 60, 24); // Change to 1m
+
+      expect(wasReset).toBe(true);
+      expect(timerData.timeLeft).toBe(60); // Should be 1m, not 3m
+    });
+
     test('should reset timer when changing to higher time', () => {
       mockTimer.originalTime = 300;
       mockTimer.timeLeft = 300;
@@ -92,6 +125,23 @@ describe('Timer Logic', () => {
       expect(timerData.timeLeft).toBe(300);
       expect(timerData.expiredMessageLogged).toBe(false);
     });
+
+    // Edge case: Handle corrupted timer state where timeLeft > originalTime
+    test('should handle corrupted state where timeLeft exceeds originalTime', () => {
+      const corruptedTimer = {
+        originalTime: 300, // 5 minutes
+        timeLeft: 600,     // 10 minutes (impossible state)
+        resetInterval: 24,
+        lastResetTimestamp: Date.now(),
+        expiredMessageLogged: false
+      };
+
+      // Even with "no change" to originalTime, should reset due to invalid timeLeft
+      const { timerData, wasReset } = applyTimerSettingsChange(corruptedTimer, 300, 24);
+
+      expect(wasReset).toBe(true);
+      expect(timerData.timeLeft).toBe(300); // Fixed to match originalTime
+    });
   });
 
   describe('checkAndResetIfIntervalPassed', () => {
@@ -108,6 +158,7 @@ describe('Timer Logic', () => {
       };
     });
 
+    // Bug fix: Timer should reset after reset interval passes
     test('should reset timer after interval passed', () => {
       const result = checkAndResetIfIntervalPassed(mockTimer, now);
       
@@ -173,6 +224,13 @@ describe('Timer Logic', () => {
       mockTimer.expiredMessageLogged = true;
       const result = decrementTimer(mockTimer);
       expect(result.expiredMessageLogged).toBe(true);
+    });
+
+    // Edge case: Handle negative timeLeft values
+    test('should handle negative timeLeft values', () => {
+      mockTimer.timeLeft = -5;
+      const result = decrementTimer(mockTimer);
+      expect(result.timeLeft).toBe(0); // Should clamp to 0
     });
   });
 

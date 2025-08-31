@@ -7,7 +7,7 @@ const isDebugMode = !chrome.runtime.getManifest().update_url;
 // Debug logging utility - only logs in unpacked mode
 function debugLog(...args) {
   if (isDebugMode) {
-    console.log('[SiteBlocker Debug]', ...args);
+    console.log("[SiteBlocker Debug]", ...args);
   }
 }
 
@@ -39,13 +39,13 @@ function getFromStorage(key) {
 
 // Export the functions for use in other modules
 // Check if we're in a service worker environment (no window object)
-if (typeof window !== 'undefined') {
+if (typeof window !== "undefined") {
   // Content script environment
   window.StorageUtils = {
     setToStorage,
     getFromStorage,
     debugLog,
-    isDebugMode
+    isDebugMode,
   };
 } else {
   // Service worker environment - functions are available globally

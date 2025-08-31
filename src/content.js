@@ -3,7 +3,7 @@
 async function checkDomainBlocked() {
   try {
     // Retrieve the domain timers from local storage.
-    const domainTimers = await StorageUtils.getFromStorage("domainTimers") || {};
+    const domainTimers = (await StorageUtils.getFromStorage("domainTimers")) || {};
     // Get the current page's URL and extract the hostname.
     const url = new URL(window.location.href);
     const domain = url.hostname;
@@ -13,8 +13,7 @@ async function checkDomainBlocked() {
       // If the time is up, replace the page's content with a "blocked" message.
       document.body.innerHTML = "<h1>Access Blocked</h1><p>Your time is up for this site.</p>";
     }
-  } catch (error) {
-  }
+  } catch (error) {}
 }
 
 // Check domain status on page load

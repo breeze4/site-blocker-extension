@@ -5,7 +5,7 @@
 /**
  * Determines if a timer needs to be reset based on settings change
  * @param {number} oldOriginalTime - Previous time limit in seconds
- * @param {number} newOriginalTime - New time limit in seconds  
+ * @param {number} newOriginalTime - New time limit in seconds
  * @param {number} currentTimeLeft - Current time remaining in seconds
  * @returns {boolean} Whether the timer should be reset
  */
@@ -24,24 +24,20 @@ function shouldResetTimer(oldOriginalTime, newOriginalTime, currentTimeLeft) {
  */
 function applyTimerSettingsChange(timerData, newOriginalTime, newResetInterval) {
   const result = { ...timerData };
-  const needsReset = shouldResetTimer(
-    timerData.originalTime,
-    newOriginalTime,
-    timerData.timeLeft
-  );
-  
+  const needsReset = shouldResetTimer(timerData.originalTime, newOriginalTime, timerData.timeLeft);
+
   result.originalTime = newOriginalTime;
   result.resetInterval = newResetInterval;
-  
+
   if (needsReset) {
     result.timeLeft = newOriginalTime;
     result.lastResetTimestamp = Date.now();
     result.expiredMessageLogged = false;
   }
-  
-  return { 
-    timerData: result, 
-    wasReset: needsReset 
+
+  return {
+    timerData: result,
+    wasReset: needsReset,
   };
 }
 
@@ -54,16 +50,16 @@ function applyTimerSettingsChange(timerData, newOriginalTime, newResetInterval) 
 function checkAndResetIfIntervalPassed(timerData, currentTime = Date.now()) {
   const resetIntervalMs = timerData.resetInterval * 60 * 60 * 1000;
   const resetCanHappenAfterTimestamp = timerData.lastResetTimestamp + resetIntervalMs;
-  
+
   if (currentTime >= resetCanHappenAfterTimestamp) {
     return {
       ...timerData,
       timeLeft: timerData.originalTime,
       lastResetTimestamp: currentTime,
-      expiredMessageLogged: false
+      expiredMessageLogged: false,
     };
   }
-  
+
   return timerData;
 }
 
@@ -76,13 +72,13 @@ function decrementTimer(timerData) {
   const newTimeLeft = Math.max(0, timerData.timeLeft - 1);
   const result = {
     ...timerData,
-    timeLeft: newTimeLeft
+    timeLeft: newTimeLeft,
   };
-  
+
   if (newTimeLeft <= 0 && !timerData.expiredMessageLogged) {
     result.expiredMessageLogged = true;
   }
-  
+
   return result;
 }
 
@@ -93,34 +89,34 @@ function decrementTimer(timerData) {
  */
 function parseURL(input) {
   let url = input.trim().toLowerCase();
-  
+
   if (!url) {
     return {
       success: false,
-      error: 'Please enter a URL or domain name',
-      original: input
+      error: "Please enter a URL or domain name",
+      original: input,
     };
   }
-  
+
   // Add protocol if missing
-  if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    url = 'https://' + url;
+  if (!url.startsWith("http://") && !url.startsWith("https://")) {
+    url = "https://" + url;
   }
-  
+
   try {
     const urlObj = new URL(url);
     const domain = urlObj.hostname;
-    
+
     return {
       success: true,
       domain: domain,
-      original: input
+      original: input,
     };
   } catch (error) {
     return {
       success: false,
-      error: 'Invalid URL format',
-      original: input
+      error: "Invalid URL format",
+      original: input,
     };
   }
 }
@@ -134,20 +130,20 @@ function validateDomain(hostname) {
   // Reject IP addresses
   const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
   if (ipRegex.test(hostname)) {
-    return { valid: false, error: 'IP addresses are not supported. Please use domain names.' };
+    return { valid: false, error: "IP addresses are not supported. Please use domain names." };
   }
-  
+
   // Reject localhost and local domains
-  if (hostname === 'localhost' || hostname.endsWith('.local') || hostname.endsWith('.localhost')) {
-    return { valid: false, error: 'Local domains cannot be tracked.' };
+  if (hostname === "localhost" || hostname.endsWith(".local") || hostname.endsWith(".localhost")) {
+    return { valid: false, error: "Local domains cannot be tracked." };
   }
-  
+
   // Basic domain format validation
   const domainRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/;
   if (!domainRegex.test(hostname)) {
-    return { valid: false, error: 'Invalid domain format.' };
+    return { valid: false, error: "Invalid domain format." };
   }
-  
+
   return { valid: true };
 }
 
@@ -158,7 +154,7 @@ function validateDomain(hostname) {
  */
 function formatTime(totalSeconds) {
   if (isNaN(totalSeconds) || totalSeconds < 0) {
-    return 'Invalid time';
+    return "Invalid time";
   }
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
@@ -172,13 +168,13 @@ function formatTime(totalSeconds) {
  */
 function formatTimeTracking(totalSeconds) {
   if (isNaN(totalSeconds) || totalSeconds < 0) {
-    return '0s';
+    return "0s";
   }
-  
+
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  
+
   if (hours > 0) {
     if (minutes > 0) {
       return `${hours}h ${minutes}m`;
@@ -197,7 +193,7 @@ function formatTimeTracking(totalSeconds) {
 }
 
 // Export for Node.js (testing) environment
-if (typeof module !== 'undefined' && module.exports) {
+if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     shouldResetTimer,
     applyTimerSettingsChange,
@@ -206,9 +202,9 @@ if (typeof module !== 'undefined' && module.exports) {
     parseURL,
     validateDomain,
     formatTime,
-    formatTimeTracking
+    formatTimeTracking,
   };
-} else if (typeof window !== 'undefined') {
+} else if (typeof window !== "undefined") {
   // Browser environment - make functions globally available
   window.TimerUtils = {
     shouldResetTimer,
@@ -218,7 +214,7 @@ if (typeof module !== 'undefined' && module.exports) {
     parseURL,
     validateDomain,
     formatTime,
-    formatTimeTracking
+    formatTimeTracking,
   };
 } else {
   // Service worker environment - make functions globally available
@@ -230,6 +226,6 @@ if (typeof module !== 'undefined' && module.exports) {
     parseURL,
     validateDomain,
     formatTime,
-    formatTimeTracking
+    formatTimeTracking,
   };
 }

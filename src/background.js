@@ -51,6 +51,7 @@ let defaultDomainTimers = {
 
 // This variable will hold the interval ID for the currently active timer. There should only be one timer running at any given time.
 let activeTimerIntervalId = null;
+let handlingTimerForTab = false; // Prevent concurrent handleTimerForTab calls
 
 
 // Asynchronously retrieves the domain timers from storage. This function serves as a single point of access to the stored timers.
@@ -302,11 +303,20 @@ async function endAllActiveSessions() {
 async function handleTimerForTab(tab) {
   debugLog('Handling timer for tab:', tab?.url);
   
-  // End any active time tracking sessions before starting new one
-  await endAllActiveSessions();
+  // Prevent concurrent execution
+  if (handlingTimerForTab) {
+    console.log('[TIMER DEBUG] Already handling timer for tab, skipping concurrent call');
+    return;
+  }
+  handlingTimerForTab = true;
+  
+  try {
+    // End any active time tracking sessions before starting new one
+    await endAllActiveSessions();
   
   // Always clear the previous timer before starting a new one.
   if (activeTimerIntervalId) {
+    console.log('[TIMER DEBUG] Clearing existing interval:', activeTimerIntervalId);
     clearInterval(activeTimerIntervalId);
     activeTimerIntervalId = null;
     debugLog('Cleared previous timer');
@@ -360,6 +370,7 @@ async function handleTimerForTab(tab) {
 
   if (domainTimer.timeLeft > 0) {
     debugLog('Starting timer countdown for:', domain, 'seconds remaining:', domainTimer.timeLeft);
+    console.log('[TIMER DEBUG] Starting new interval, previous intervalId:', activeTimerIntervalId);
     activeTimerIntervalId = setInterval(async () => {
       // Check if the current active tab is still on this domain
       try {
@@ -396,6 +407,7 @@ async function handleTimerForTab(tab) {
       }
       
       // Use TimerUtils to decrement if available
+      console.log('[TIMER DEBUG] Decrementing timer for', domain, 'from', currentTimers[domain].timeLeft, 'at', new Date().toISOString());
       if (typeof TimerUtils !== 'undefined' && TimerUtils.decrementTimer) {
         currentTimers[domain] = TimerUtils.decrementTimer(currentTimers[domain]);
       } else {
@@ -442,6 +454,9 @@ async function handleTimerForTab(tab) {
     }
     // If time has already expired, block navigation.
     chrome.tabs.update(tab.id, { url: "chrome://newtab" });
+  }
+  } finally {
+    handlingTimerForTab = false;
   }
 }
 

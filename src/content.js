@@ -8,8 +8,11 @@ async function checkDomainBlocked() {
     const url = new URL(window.location.href);
     const domain = url.hostname;
 
-    // Check if the time left for the current domain is zero or less.
-    if (domainTimers[domain] && domainTimers[domain].timeLeft <= 0) {
+    // Check if the time left for the current domain is zero or invalid.
+    if (
+      domainTimers[domain] &&
+      !(Number.isFinite(domainTimers[domain].timeLeft) && domainTimers[domain].timeLeft > 0)
+    ) {
       // If the time is up, replace the page's content with a "blocked" message.
       document.body.innerHTML = "<h1>Access Blocked</h1><p>Your time is up for this site.</p>";
     }

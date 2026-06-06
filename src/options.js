@@ -76,6 +76,33 @@ function validateDomain(hostname) {
   return { valid: true };
 }
 
+function parsePositiveInteger(value) {
+  const normalized = String(value).trim();
+  if (!/^\d+$/.test(normalized)) {
+    return null;
+  }
+
+  const parsed = Number(normalized);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function isPlainRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function createResetTimeTrackingRecord(existingRecord, currentDate) {
+  return {
+    dailyTotals: {},
+    allTimeTotal: 0,
+    trackingStartDate: isPlainRecord(existingRecord)
+      ? existingRecord.trackingStartDate || currentDate
+      : currentDate,
+    lastResetDate: currentDate,
+    currentSessionStart: null,
+    lastActiveTimestamp: Date.now(),
+  };
+}
+
 // Enhanced parseURL function with validation and better error messages
 function parseURLWithValidation(input) {
   if (!input || !input.trim()) {
@@ -215,10 +242,16 @@ document.getElementById("siteForm").addEventListener("submit", async (event) => 
   );
 
   // Time is already in minutes from radio button values and converted to seconds for storage.
-  const originalTimeInMinutes = timeAllowedRadio ? parseInt(timeAllowedRadio.value, 10) : null;
+  const originalTimeInMinutes = timeAllowedRadio
+    ? parsePositiveInteger(timeAllowedRadio.value)
+    : null;
   const resetInterval = globalResetIntervalRadio
-    ? parseInt(globalResetIntervalRadio.value, 10)
+    ? parsePositiveInteger(globalResetIntervalRadio.value)
     : 24; // Default to 24 hours
+
+  if (originalTimeInMinutes === null || resetInterval === null) {
+    return;
+  }
 
   // Check if all the required fields have a value.
   if (domain && originalTimeInMinutes !== null) {
@@ -226,7 +259,8 @@ document.getElementById("siteForm").addEventListener("submit", async (event) => 
 
     try {
       // Get the current list of domain timers from storage.
-      const domainTimers = (await StorageUtils.getFromStorage("domainTimers")) || {};
+      const storedDomainTimers = await StorageUtils.getFromStorage("domainTimers");
+      const domainTimers = isPlainRecord(storedDomainTimers) ? storedDomainTimers : {};
 
       // Check for duplicates
       if (domainTimers[domain]) {
@@ -270,20 +304,25 @@ async function calculateTimeSpentInOptions(domain, period) {
       return 0;
     }
 
-    // Handle all-time period
-    if (period === "alltime") {
-      return domainData.allTimeTotal || 0;
-    }
-
-    // Calculate rolling window periods
-    const now = new Date();
     let totalSeconds = 0;
 
     // Add current session time if there's an active session
     if (domainData.currentSessionStart) {
       const currentSessionTime = Math.floor((Date.now() - domainData.currentSessionStart) / 1000);
-      totalSeconds += currentSessionTime;
+      totalSeconds += Math.max(0, currentSessionTime);
     }
+
+    // Handle all-time period
+    if (period === "alltime") {
+      const allTimeTotal =
+        Number.isFinite(domainData.allTimeTotal) && domainData.allTimeTotal >= 0
+          ? domainData.allTimeTotal
+          : 0;
+      return allTimeTotal + totalSeconds;
+    }
+
+    // Calculate rolling window periods
+    const now = new Date();
 
     // Determine date range based on period
     let daysToCheck = 0;
@@ -307,8 +346,9 @@ async function calculateTimeSpentInOptions(domain, period) {
       date.setDate(date.getDate() - i);
       const dateString = date.toISOString().split("T")[0];
 
-      if (domainData.dailyTotals && domainData.dailyTotals[dateString]) {
-        totalSeconds += domainData.dailyTotals[dateString];
+      const dailyTotal = domainData.dailyTotals && domainData.dailyTotals[dateString];
+      if (Number.isFinite(dailyTotal) && dailyTotal >= 0) {
+        totalSeconds += dailyTotal;
       }
     }
 
@@ -320,7 +360,7 @@ async function calculateTimeSpentInOptions(domain, period) {
 
 // Helper function to format time tracking data for display
 function formatTimeTracking(totalSeconds) {
-  if (isNaN(totalSeconds) || totalSeconds < 0) {
+  if (!Number.isFinite(totalSeconds) || totalSeconds < 0) {
     return "0s";
   }
 
@@ -350,7 +390,7 @@ function formatTimeTracking(totalSeconds) {
 async function renderDomainList() {
   // Helper function to convert seconds to a "X min Y sec" format.
   const formatTime = (totalSeconds) => {
-    if (isNaN(totalSeconds) || totalSeconds < 0) {
+    if (!Number.isFinite(totalSeconds) || totalSeconds < 0) {
       return "Invalid time";
     }
     const minutes = Math.floor(totalSeconds / 60);
@@ -389,21 +429,23 @@ async function renderDomainList() {
     domainListBody.innerHTML = "";
 
     // Sort domains by base domain first, then by subdomain
-    const sortedDomains = Object.entries(domainTimers).sort((a, b) => {
-      const [domainA] = a;
-      const [domainB] = b;
+    const sortedDomains = Object.entries(domainTimers)
+      .filter(([, timerData]) => isPlainRecord(timerData))
+      .sort((a, b) => {
+        const [domainA] = a;
+        const [domainB] = b;
 
-      const baseDomainA = getBaseDomainForSorting(domainA);
-      const baseDomainB = getBaseDomainForSorting(domainB);
+        const baseDomainA = getBaseDomainForSorting(domainA);
+        const baseDomainB = getBaseDomainForSorting(domainB);
 
-      // First sort by base domain
-      if (baseDomainA !== baseDomainB) {
-        return baseDomainA.localeCompare(baseDomainB);
-      }
+        // First sort by base domain
+        if (baseDomainA !== baseDomainB) {
+          return baseDomainA.localeCompare(baseDomainB);
+        }
 
-      // If base domains are the same, sort by full domain (subdomain)
-      return domainA.localeCompare(domainB);
-    });
+        // If base domains are the same, sort by full domain (subdomain)
+        return domainA.localeCompare(domainB);
+      });
 
     // Iterate over the sorted domain timers and create a table row for each one.
     for (const [
@@ -515,12 +557,23 @@ async function renderDomainList() {
       // Actions cell (delete and reset tracking buttons)
       const actionsCell = document.createElement("td");
       actionsCell.className = "actions-cell";
-      actionsCell.innerHTML = `
-        <div class="actions-buttons">
-          <button class="delete-button" data-domain="${domain}">Delete</button>
-          <button class="reset-tracking-button" data-domain="${domain}">Reset Tracking</button>
-        </div>
-      `;
+
+      const actionsButtons = document.createElement("div");
+      actionsButtons.className = "actions-buttons";
+
+      const deleteButton = document.createElement("button");
+      deleteButton.className = "delete-button";
+      deleteButton.dataset.domain = domain;
+      deleteButton.textContent = "Delete";
+
+      const resetTrackingButton = document.createElement("button");
+      resetTrackingButton.className = "reset-tracking-button";
+      resetTrackingButton.dataset.domain = domain;
+      resetTrackingButton.textContent = "Reset Tracking";
+
+      actionsButtons.appendChild(deleteButton);
+      actionsButtons.appendChild(resetTrackingButton);
+      actionsCell.appendChild(actionsButtons);
 
       // Append all cells to row
       row.appendChild(domainCell);
@@ -573,7 +626,9 @@ async function updateTimeTrackingCells(domain) {
     const allTime = await calculateTimeSpentInOptions(domain, "alltime");
 
     // Update the corresponding cells
-    const cells = document.querySelectorAll(`.time-tracking-cell[data-domain="${domain}"]`);
+    const cells = Array.from(document.querySelectorAll(".time-tracking-cell")).filter(
+      (cell) => cell.dataset.domain === domain
+    );
     cells.forEach((cell) => {
       const period = cell.getAttribute("data-period");
       let timeSeconds = 0;
@@ -619,16 +674,17 @@ document.getElementById("domainListBody").addEventListener("click", async (event
     );
 
     if (originalTimeRadio) {
-      const originalTimeInMinutes = parseInt(originalTimeRadio.value, 10);
+      const originalTimeInMinutes = parsePositiveInteger(originalTimeRadio.value);
       const resetInterval = globalResetIntervalRadio
-        ? parseInt(globalResetIntervalRadio.value, 10)
+        ? parsePositiveInteger(globalResetIntervalRadio.value)
         : 24;
 
-      if (!isNaN(originalTimeInMinutes) && !isNaN(resetInterval)) {
+      if (originalTimeInMinutes !== null && resetInterval !== null) {
         const originalTimeInSeconds = originalTimeInMinutes * 60;
 
         try {
-          const domainTimers = (await StorageUtils.getFromStorage("domainTimers")) || {};
+          const storedDomainTimers = await StorageUtils.getFromStorage("domainTimers");
+          const domainTimers = isPlainRecord(storedDomainTimers) ? storedDomainTimers : {};
           let timeChanged = false;
 
           if (domainTimers[domainToSave]) {
@@ -690,7 +746,8 @@ document.getElementById("domainListBody").addEventListener("click", async (event
 
     try {
       // Get the current list of domain timers from storage.
-      const domainTimers = (await StorageUtils.getFromStorage("domainTimers")) || {};
+      const storedDomainTimers = await StorageUtils.getFromStorage("domainTimers");
+      const domainTimers = isPlainRecord(storedDomainTimers) ? storedDomainTimers : {};
       // Remove the domain from the object.
       delete domainTimers[domainToDelete];
 
@@ -708,20 +765,21 @@ document.getElementById("domainListBody").addEventListener("click", async (event
 
     try {
       // Get the current time tracking data from storage.
-      const timeTracking = (await StorageUtils.getFromStorage("timeTracking")) || {};
+      const storedTimeTracking = await StorageUtils.getFromStorage("timeTracking");
+      const hasValidTrackingMap = isPlainRecord(storedTimeTracking);
+      const timeTracking = hasValidTrackingMap ? storedTimeTracking : {};
 
-      if (timeTracking[domainToReset]) {
+      if (
+        !hasValidTrackingMap ||
+        Object.prototype.hasOwnProperty.call(timeTracking, domainToReset)
+      ) {
         const currentDate = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
 
         // Clear domain's time tracking data while preserving timer settings
-        timeTracking[domainToReset] = {
-          dailyTotals: {},
-          allTimeTotal: 0,
-          trackingStartDate: currentDate,
-          lastResetDate: currentDate,
-          currentSessionStart: null,
-          lastActiveTimestamp: Date.now(),
-        };
+        timeTracking[domainToReset] = createResetTimeTrackingRecord(
+          timeTracking[domainToReset],
+          currentDate
+        );
 
         // Save the updated time tracking back to storage.
         await StorageUtils.setToStorage({ timeTracking });
@@ -742,8 +800,13 @@ document.getElementById("resetTimersButton").addEventListener("click", async (ev
     const currentTime = Date.now();
 
     for (const [domain, timerData] of Object.entries(domainTimers)) {
+      if (!isPlainRecord(timerData)) {
+        continue;
+      }
+
       timerData.timeLeft = timerData.originalTime;
       timerData.lastResetTimestamp = currentTime;
+      timerData.expiredMessageLogged = false;
       domainTimers[domain] = timerData;
     }
     return domainTimers;
@@ -751,7 +814,8 @@ document.getElementById("resetTimersButton").addEventListener("click", async (ev
 
   try {
     // Get the current domain timers from storage.
-    const domainTimers = (await StorageUtils.getFromStorage("domainTimers")) || {};
+    const storedDomainTimers = await StorageUtils.getFromStorage("domainTimers");
+    const domainTimers = isPlainRecord(storedDomainTimers) ? storedDomainTimers : {};
     // Reset the timers.
     const domainTimersReset = resetTimers(domainTimers);
 
@@ -769,19 +833,13 @@ document.getElementById("resetAllTrackingButton").addEventListener("click", asyn
 
   try {
     // Get the current time tracking data from storage.
-    const timeTracking = (await StorageUtils.getFromStorage("timeTracking")) || {};
+    const storedTimeTracking = await StorageUtils.getFromStorage("timeTracking");
+    const timeTracking = isPlainRecord(storedTimeTracking) ? storedTimeTracking : {};
     const currentDate = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
 
     // Reset tracking data for all domains while preserving structure
     for (const [domain, data] of Object.entries(timeTracking)) {
-      timeTracking[domain] = {
-        dailyTotals: {},
-        allTimeTotal: 0,
-        trackingStartDate: currentDate,
-        lastResetDate: currentDate,
-        currentSessionStart: null,
-        lastActiveTimestamp: Date.now(),
-      };
+      timeTracking[domain] = createResetTimeTrackingRecord(data, currentDate);
     }
 
     // Save the reset tracking data back to storage.
@@ -798,14 +856,22 @@ document.getElementById("globalResetIntervalGroup").addEventListener("change", a
     'input[name="globalResetInterval"]:checked'
   );
   if (globalResetIntervalRadio) {
-    const newResetInterval = parseInt(globalResetIntervalRadio.value, 10);
+    const newResetInterval = parsePositiveInteger(globalResetIntervalRadio.value);
+    if (newResetInterval === null) {
+      return;
+    }
 
     try {
       // Update all existing domains with the new reset interval
-      const domainTimers = (await StorageUtils.getFromStorage("domainTimers")) || {};
+      const storedDomainTimers = await StorageUtils.getFromStorage("domainTimers");
+      const domainTimers = isPlainRecord(storedDomainTimers) ? storedDomainTimers : {};
 
       // Update reset interval for all domains
       for (const domain in domainTimers) {
+        if (!isPlainRecord(domainTimers[domain])) {
+          continue;
+        }
+
         domainTimers[domain].resetInterval = newResetInterval;
       }
 
@@ -865,7 +931,7 @@ renderDomainList();
 // Function to update only time left and last reset columns without full re-render
 async function updateTimeDisplays() {
   const formatTime = (totalSeconds) => {
-    if (isNaN(totalSeconds) || totalSeconds < 0) {
+    if (!Number.isFinite(totalSeconds) || totalSeconds < 0) {
       return "Invalid time";
     }
     const minutes = Math.floor(totalSeconds / 60);

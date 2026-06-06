@@ -132,4 +132,1180 @@ describe('Options.js Integration', () => {
       expect(formatTimeTracking(45)).toBe('45s');
     });
   });
+
+  describe('options page rendering', () => {
+    beforeEach(() => {
+      jest.resetModules();
+      jest.useFakeTimers();
+
+      document.body.innerHTML = `
+        <div id="onboarding" style="display: none;">
+          <button id="dismissOnboarding">Dismiss</button>
+        </div>
+        <div id="globalResetIntervalGroup">
+          <input type="radio" id="globalReset1" name="globalResetInterval" value="1">
+          <input type="radio" id="globalReset8" name="globalResetInterval" value="8">
+          <input type="radio" id="globalReset24" name="globalResetInterval" value="24" checked>
+        </div>
+        <form id="siteForm">
+          <input id="urlInput">
+          <div id="urlPreview"></div>
+          <input type="radio" id="time5" name="timeAllowed" value="5" checked>
+        </form>
+        <table>
+          <tbody id="domainListBody"></tbody>
+        </table>
+        <button id="resetTimersButton"></button>
+        <button id="resetAllTrackingButton"></button>
+      `;
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+      jest.resetModules();
+    });
+
+    test('renders stored domain action buttons without interpreting the domain as markup', async () => {
+      const storedDomain = 'example.com" autofocus onfocus="window.__xss = true';
+      const domainTimers = {
+        [storedDomain]: {
+          originalTime: 300,
+          timeLeft: 120,
+          resetInterval: 24,
+          lastResetTimestamp: Date.now(),
+          expiredMessageLogged: false
+        }
+      };
+
+      global.StorageUtils.getFromStorage = jest.fn((key) => {
+        if (key === 'domainTimers') {
+          return Promise.resolve(domainTimers);
+        }
+        if (key === 'timeTracking') {
+          return Promise.resolve({});
+        }
+        return Promise.resolve(null);
+      });
+      global.StorageUtils.setToStorage = jest.fn(() => Promise.resolve());
+
+      require('../src/options.js');
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      const deleteButton = document.querySelector('.delete-button');
+      const resetTrackingButton = document.querySelector('.reset-tracking-button');
+
+      expect(deleteButton).not.toBeNull();
+      expect(resetTrackingButton).not.toBeNull();
+      expect(deleteButton.dataset.domain).toBe(storedDomain);
+      expect(resetTrackingButton.dataset.domain).toBe(storedDomain);
+      expect(deleteButton.getAttribute('onfocus')).toBeNull();
+      expect(resetTrackingButton.getAttribute('onfocus')).toBeNull();
+      expect(document.querySelector('[autofocus]')).toBeNull();
+    });
+
+    test('delete repairs malformed top-level timer storage at click time', async () => {
+      const storedDomain = 'example.com';
+      let domainTimers = {
+        [storedDomain]: {
+          originalTime: 300,
+          timeLeft: 120,
+          resetInterval: 24,
+          lastResetTimestamp: Date.now(),
+          expiredMessageLogged: false
+        }
+      };
+
+      global.StorageUtils.getFromStorage = jest.fn((key) => {
+        if (key === 'domainTimers') {
+          return Promise.resolve(domainTimers);
+        }
+        if (key === 'timeTracking') {
+          return Promise.resolve({});
+        }
+        return Promise.resolve(null);
+      });
+      global.StorageUtils.setToStorage = jest.fn(() => Promise.resolve());
+
+      require('../src/options.js');
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      domainTimers = 'corrupt';
+      global.StorageUtils.setToStorage.mockClear();
+      document.querySelector('.delete-button').click();
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      const deleteWrite = global.StorageUtils.setToStorage.mock.calls.find(
+        ([value]) => value.domainTimers
+      );
+
+      expect(deleteWrite).toBeDefined();
+      expect(deleteWrite[0].domainTimers).toEqual({});
+    });
+
+    test('updates time tracking cells for stored domains that contain selector metacharacters', async () => {
+      const storedDomain = 'example.com" [data-period="alltime';
+      const domainTimers = {
+        [storedDomain]: {
+          originalTime: 300,
+          timeLeft: 120,
+          resetInterval: 24,
+          lastResetTimestamp: Date.now(),
+          expiredMessageLogged: false
+        }
+      };
+
+      global.StorageUtils.getFromStorage = jest.fn((key) => {
+        if (key === 'domainTimers') {
+          return Promise.resolve(domainTimers);
+        }
+        if (key === 'timeTracking') {
+          return Promise.resolve({});
+        }
+        return Promise.resolve(null);
+      });
+      global.StorageUtils.setToStorage = jest.fn(() => Promise.resolve());
+
+      require('../src/options.js');
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      const timeTrackingCells = Array.from(document.querySelectorAll('.time-tracking-cell'));
+
+      expect(timeTrackingCells).toHaveLength(4);
+      expect(timeTrackingCells.map((cell) => cell.textContent)).toEqual(['0s', '0s', '0s', '0s']);
+    });
+
+    test('renders valid timer rows when another stored timer record is malformed', async () => {
+      const domainTimers = {
+        'broken.example.com': null,
+        'example.com': {
+          originalTime: 300,
+          timeLeft: 120,
+          resetInterval: 24,
+          lastResetTimestamp: Date.now(),
+          expiredMessageLogged: false
+        }
+      };
+
+      global.StorageUtils.getFromStorage = jest.fn((key) => {
+        if (key === 'domainTimers') {
+          return Promise.resolve(domainTimers);
+        }
+        if (key === 'timeTracking') {
+          return Promise.resolve({});
+        }
+        return Promise.resolve(null);
+      });
+      global.StorageUtils.setToStorage = jest.fn(() => Promise.resolve());
+
+      require('../src/options.js');
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      const rows = Array.from(document.querySelectorAll('#domainListBody tr'));
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0].cells[0].textContent).toBe('example.com');
+      expect(rows[0].cells[2].textContent).toBe('2 min 0 sec');
+    });
+
+    test('includes the active session in the all time usage cell', async () => {
+      jest.setSystemTime(new Date('2026-06-05T12:00:05.000Z'));
+
+      const storedDomain = 'example.com';
+      const domainTimers = {
+        [storedDomain]: {
+          originalTime: 300,
+          timeLeft: 120,
+          resetInterval: 24,
+          lastResetTimestamp: Date.now(),
+          expiredMessageLogged: false
+        }
+      };
+      const timeTracking = {
+        [storedDomain]: {
+          dailyTotals: {},
+          allTimeTotal: 60,
+          trackingStartDate: '2026-06-05',
+          lastResetDate: '2026-06-05',
+          currentSessionStart: Date.now() - 5000,
+          lastActiveTimestamp: Date.now()
+        }
+      };
+
+      global.StorageUtils.getFromStorage = jest.fn((key) => {
+        if (key === 'domainTimers') {
+          return Promise.resolve(domainTimers);
+        }
+        if (key === 'timeTracking') {
+          return Promise.resolve(timeTracking);
+        }
+        return Promise.resolve(null);
+      });
+      global.StorageUtils.setToStorage = jest.fn(() => Promise.resolve());
+
+      require('../src/options.js');
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      const allTimeCell = document.querySelector('.time-tracking-cell[data-period="alltime"]');
+
+      expect(allTimeCell).not.toBeNull();
+      expect(allTimeCell.textContent).toBe('1m 5s');
+    });
+
+    test('rolling usage cells keep active session time when stored daily totals are non-finite', async () => {
+      jest.setSystemTime(new Date('2026-06-05T12:00:05.000Z'));
+
+      const storedDomain = 'example.com';
+      const domainTimers = {
+        [storedDomain]: {
+          originalTime: 300,
+          timeLeft: 120,
+          resetInterval: 24,
+          lastResetTimestamp: Date.now(),
+          expiredMessageLogged: false
+        }
+      };
+      const timeTracking = {
+        [storedDomain]: {
+          dailyTotals: {
+            '2026-06-05': Infinity
+          },
+          allTimeTotal: 0,
+          trackingStartDate: '2026-06-05',
+          lastResetDate: '2026-06-05',
+          currentSessionStart: Date.now() - 5000,
+          lastActiveTimestamp: Date.now()
+        }
+      };
+
+      global.StorageUtils.getFromStorage = jest.fn((key) => {
+        if (key === 'domainTimers') {
+          return Promise.resolve(domainTimers);
+        }
+        if (key === 'timeTracking') {
+          return Promise.resolve(timeTracking);
+        }
+        return Promise.resolve(null);
+      });
+      global.StorageUtils.setToStorage = jest.fn(() => Promise.resolve());
+
+      require('../src/options.js');
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      const last24hCell = document.querySelector('.time-tracking-cell[data-period="24h"]');
+
+      expect(last24hCell).not.toBeNull();
+      expect(last24hCell.textContent).toBe('5s');
+    });
+
+    test('usage cells keep active session time when stored tracking totals are negative', async () => {
+      jest.setSystemTime(new Date('2026-06-05T12:00:05.000Z'));
+
+      const storedDomain = 'example.com';
+      const domainTimers = {
+        [storedDomain]: {
+          originalTime: 300,
+          timeLeft: 120,
+          resetInterval: 24,
+          lastResetTimestamp: Date.now(),
+          expiredMessageLogged: false
+        }
+      };
+      const timeTracking = {
+        [storedDomain]: {
+          dailyTotals: {
+            '2026-06-05': -10
+          },
+          allTimeTotal: -10,
+          trackingStartDate: '2026-06-05',
+          lastResetDate: '2026-06-05',
+          currentSessionStart: Date.now() - 5000,
+          lastActiveTimestamp: Date.now()
+        }
+      };
+
+      global.StorageUtils.getFromStorage = jest.fn((key) => {
+        if (key === 'domainTimers') {
+          return Promise.resolve(domainTimers);
+        }
+        if (key === 'timeTracking') {
+          return Promise.resolve(timeTracking);
+        }
+        return Promise.resolve(null);
+      });
+      global.StorageUtils.setToStorage = jest.fn(() => Promise.resolve());
+
+      require('../src/options.js');
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      const last24hCell = document.querySelector('.time-tracking-cell[data-period="24h"]');
+      const allTimeCell = document.querySelector('.time-tracking-cell[data-period="alltime"]');
+
+      expect(last24hCell).not.toBeNull();
+      expect(allTimeCell).not.toBeNull();
+      expect(last24hCell.textContent).toBe('5s');
+      expect(allTimeCell.textContent).toBe('5s');
+    });
+
+    test('does not subtract usage when an active session timestamp is in the future', async () => {
+      jest.setSystemTime(new Date('2026-06-05T12:00:05.000Z'));
+
+      const storedDomain = 'example.com';
+      const domainTimers = {
+        [storedDomain]: {
+          originalTime: 300,
+          timeLeft: 120,
+          resetInterval: 24,
+          lastResetTimestamp: Date.now(),
+          expiredMessageLogged: false
+        }
+      };
+      const timeTracking = {
+        [storedDomain]: {
+          dailyTotals: {},
+          allTimeTotal: 60,
+          trackingStartDate: '2026-06-05',
+          lastResetDate: '2026-06-05',
+          currentSessionStart: Date.now() + 5000,
+          lastActiveTimestamp: Date.now()
+        }
+      };
+
+      global.StorageUtils.getFromStorage = jest.fn((key) => {
+        if (key === 'domainTimers') {
+          return Promise.resolve(domainTimers);
+        }
+        if (key === 'timeTracking') {
+          return Promise.resolve(timeTracking);
+        }
+        return Promise.resolve(null);
+      });
+      global.StorageUtils.setToStorage = jest.fn(() => Promise.resolve());
+
+      require('../src/options.js');
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      const allTimeCell = document.querySelector('.time-tracking-cell[data-period="alltime"]');
+
+      expect(allTimeCell).not.toBeNull();
+      expect(allTimeCell.textContent).toBe('1m');
+    });
+
+    test('reset all timers clears expired message state for reset timers', async () => {
+      jest.setSystemTime(new Date('2026-06-05T12:00:05.000Z'));
+
+      const storedDomain = 'example.com';
+      const domainTimers = {
+        [storedDomain]: {
+          originalTime: 300,
+          timeLeft: 0,
+          resetInterval: 24,
+          lastResetTimestamp: Date.now() - 1000,
+          expiredMessageLogged: true
+        }
+      };
+
+      global.StorageUtils.getFromStorage = jest.fn((key) => {
+        if (key === 'domainTimers') {
+          return Promise.resolve(domainTimers);
+        }
+        if (key === 'timeTracking') {
+          return Promise.resolve({});
+        }
+        return Promise.resolve(null);
+      });
+      global.StorageUtils.setToStorage = jest.fn(() => Promise.resolve());
+
+      require('../src/options.js');
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      document.getElementById('resetTimersButton').click();
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      const resetWrite = global.StorageUtils.setToStorage.mock.calls.find(
+        ([value]) => value.domainTimers
+      );
+
+      expect(resetWrite).toBeDefined();
+      expect(resetWrite[0].domainTimers[storedDomain]).toMatchObject({
+        timeLeft: 300,
+        expiredMessageLogged: false
+      });
+    });
+
+    test('reset all timers skips malformed timer records instead of aborting the reset', async () => {
+      jest.setSystemTime(new Date('2026-06-05T12:00:05.000Z'));
+
+      const domainTimers = {
+        'example.com': {
+          originalTime: 300,
+          timeLeft: 0,
+          resetInterval: 24,
+          lastResetTimestamp: Date.now() - 5000,
+          expiredMessageLogged: true
+        },
+        'broken.example.com': null
+      };
+
+      global.StorageUtils.getFromStorage = jest.fn((key) => {
+        if (key === 'domainTimers') {
+          return Promise.resolve(domainTimers);
+        }
+        if (key === 'timeTracking') {
+          return Promise.resolve({});
+        }
+        return Promise.resolve(null);
+      });
+      global.StorageUtils.setToStorage = jest.fn(() => Promise.resolve());
+
+      require('../src/options.js');
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      global.StorageUtils.setToStorage.mockClear();
+      document.getElementById('resetTimersButton').click();
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      const resetWrite = global.StorageUtils.setToStorage.mock.calls.find(
+        ([value]) => value.domainTimers
+      );
+
+      expect(resetWrite).toBeDefined();
+      expect(resetWrite[0].domainTimers['example.com']).toMatchObject({
+        originalTime: 300,
+        timeLeft: 300,
+        resetInterval: 24,
+        lastResetTimestamp: Date.now(),
+        expiredMessageLogged: false
+      });
+      expect(resetWrite[0].domainTimers['broken.example.com']).toBeNull();
+    });
+
+    test('reset all timers repairs malformed top-level timer storage', async () => {
+      global.StorageUtils.getFromStorage = jest.fn((key) => {
+        if (key === 'domainTimers') {
+          return Promise.resolve('corrupt');
+        }
+        if (key === 'timeTracking') {
+          return Promise.resolve({});
+        }
+        return Promise.resolve(null);
+      });
+      global.StorageUtils.setToStorage = jest.fn(() => Promise.resolve());
+
+      require('../src/options.js');
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      global.StorageUtils.setToStorage.mockClear();
+      document.getElementById('resetTimersButton').click();
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      const resetWrite = global.StorageUtils.setToStorage.mock.calls.find(
+        ([value]) => value.domainTimers
+      );
+
+      expect(resetWrite).toBeDefined();
+      expect(resetWrite[0].domainTimers).toEqual({});
+    });
+
+    test('individual tracking reset preserves the original tracking start date', async () => {
+      jest.setSystemTime(new Date('2026-06-05T12:00:05.000Z'));
+
+      const storedDomain = 'example.com';
+      const domainTimers = {
+        [storedDomain]: {
+          originalTime: 300,
+          timeLeft: 120,
+          resetInterval: 24,
+          lastResetTimestamp: Date.now(),
+          expiredMessageLogged: false
+        }
+      };
+      const timeTracking = {
+        [storedDomain]: {
+          dailyTotals: {
+            '2026-06-04': 120
+          },
+          allTimeTotal: 120,
+          trackingStartDate: '2026-01-15',
+          lastResetDate: '2026-01-15',
+          currentSessionStart: Date.now() - 5000,
+          lastActiveTimestamp: Date.now()
+        }
+      };
+
+      global.StorageUtils.getFromStorage = jest.fn((key) => {
+        if (key === 'domainTimers') {
+          return Promise.resolve(domainTimers);
+        }
+        if (key === 'timeTracking') {
+          return Promise.resolve(timeTracking);
+        }
+        return Promise.resolve(null);
+      });
+      global.StorageUtils.setToStorage = jest.fn(() => Promise.resolve());
+
+      require('../src/options.js');
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      document.querySelector('.reset-tracking-button').click();
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      const resetWrite = global.StorageUtils.setToStorage.mock.calls.find(
+        ([value]) => value.timeTracking
+      );
+
+      expect(resetWrite).toBeDefined();
+      expect(resetWrite[0].timeTracking[storedDomain]).toMatchObject({
+        dailyTotals: {},
+        allTimeTotal: 0,
+        trackingStartDate: '2026-01-15',
+        lastResetDate: '2026-06-05',
+        currentSessionStart: null
+      });
+    });
+
+    test('individual tracking reset repairs malformed top-level tracking storage', async () => {
+      jest.setSystemTime(new Date('2026-06-05T12:00:05.000Z'));
+
+      const storedDomain = 'example.com';
+      const domainTimers = {
+        [storedDomain]: {
+          originalTime: 300,
+          timeLeft: 120,
+          resetInterval: 24,
+          lastResetTimestamp: Date.now(),
+          expiredMessageLogged: false
+        }
+      };
+
+      global.StorageUtils.getFromStorage = jest.fn((key) => {
+        if (key === 'domainTimers') {
+          return Promise.resolve(domainTimers);
+        }
+        if (key === 'timeTracking') {
+          return Promise.resolve('corrupt');
+        }
+        return Promise.resolve(null);
+      });
+      global.StorageUtils.setToStorage = jest.fn(() => Promise.resolve());
+
+      require('../src/options.js');
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      global.StorageUtils.setToStorage.mockClear();
+      document.querySelector('.reset-tracking-button').click();
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      const resetWrite = global.StorageUtils.setToStorage.mock.calls.find(
+        ([value]) => value.timeTracking
+      );
+
+      expect(resetWrite).toBeDefined();
+      expect(resetWrite[0].timeTracking[storedDomain]).toMatchObject({
+        dailyTotals: {},
+        allTimeTotal: 0,
+        trackingStartDate: '2026-06-05',
+        lastResetDate: '2026-06-05',
+        currentSessionStart: null
+      });
+    });
+
+    test('global tracking reset preserves each domain tracking start date', async () => {
+      jest.setSystemTime(new Date('2026-06-05T12:00:05.000Z'));
+
+      const domainTimers = {
+        'example.com': {
+          originalTime: 300,
+          timeLeft: 120,
+          resetInterval: 24,
+          lastResetTimestamp: Date.now(),
+          expiredMessageLogged: false
+        },
+        'another.example.com': {
+          originalTime: 600,
+          timeLeft: 240,
+          resetInterval: 24,
+          lastResetTimestamp: Date.now(),
+          expiredMessageLogged: false
+        }
+      };
+      const timeTracking = {
+        'example.com': {
+          dailyTotals: {
+            '2026-06-04': 120
+          },
+          allTimeTotal: 120,
+          trackingStartDate: '2026-01-15',
+          lastResetDate: '2026-01-15',
+          currentSessionStart: Date.now() - 5000,
+          lastActiveTimestamp: Date.now()
+        },
+        'another.example.com': {
+          dailyTotals: {
+            '2026-06-03': 240
+          },
+          allTimeTotal: 240,
+          trackingStartDate: '2026-02-20',
+          lastResetDate: '2026-02-20',
+          currentSessionStart: null,
+          lastActiveTimestamp: Date.now()
+        }
+      };
+
+      global.StorageUtils.getFromStorage = jest.fn((key) => {
+        if (key === 'domainTimers') {
+          return Promise.resolve(domainTimers);
+        }
+        if (key === 'timeTracking') {
+          return Promise.resolve(timeTracking);
+        }
+        return Promise.resolve(null);
+      });
+      global.StorageUtils.setToStorage = jest.fn(() => Promise.resolve());
+
+      require('../src/options.js');
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      document.getElementById('resetAllTrackingButton').click();
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      const resetWrite = global.StorageUtils.setToStorage.mock.calls.find(
+        ([value]) => value.timeTracking
+      );
+
+      expect(resetWrite).toBeDefined();
+      expect(resetWrite[0].timeTracking['example.com']).toMatchObject({
+        dailyTotals: {},
+        allTimeTotal: 0,
+        trackingStartDate: '2026-01-15',
+        lastResetDate: '2026-06-05',
+        currentSessionStart: null
+      });
+      expect(resetWrite[0].timeTracking['another.example.com']).toMatchObject({
+        dailyTotals: {},
+        allTimeTotal: 0,
+        trackingStartDate: '2026-02-20',
+        lastResetDate: '2026-06-05',
+        currentSessionStart: null
+      });
+    });
+
+    test('global tracking reset repairs malformed domain tracking records', async () => {
+      jest.setSystemTime(new Date('2026-06-05T12:00:05.000Z'));
+
+      const domainTimers = {
+        'example.com': {
+          originalTime: 300,
+          timeLeft: 120,
+          resetInterval: 24,
+          lastResetTimestamp: Date.now(),
+          expiredMessageLogged: false
+        },
+        'broken.example.com': {
+          originalTime: 600,
+          timeLeft: 240,
+          resetInterval: 24,
+          lastResetTimestamp: Date.now(),
+          expiredMessageLogged: false
+        }
+      };
+      const timeTracking = {
+        'example.com': {
+          dailyTotals: {
+            '2026-06-04': 120
+          },
+          allTimeTotal: 120,
+          trackingStartDate: '2026-01-15',
+          lastResetDate: '2026-01-15',
+          currentSessionStart: Date.now() - 5000,
+          lastActiveTimestamp: Date.now()
+        },
+        'broken.example.com': null
+      };
+
+      global.StorageUtils.getFromStorage = jest.fn((key) => {
+        if (key === 'domainTimers') {
+          return Promise.resolve(domainTimers);
+        }
+        if (key === 'timeTracking') {
+          return Promise.resolve(timeTracking);
+        }
+        return Promise.resolve(null);
+      });
+      global.StorageUtils.setToStorage = jest.fn(() => Promise.resolve());
+
+      require('../src/options.js');
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      global.StorageUtils.setToStorage.mockClear();
+      document.getElementById('resetAllTrackingButton').click();
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      const resetWrite = global.StorageUtils.setToStorage.mock.calls.find(
+        ([value]) => value.timeTracking
+      );
+
+      expect(resetWrite).toBeDefined();
+      expect(resetWrite[0].timeTracking['example.com']).toMatchObject({
+        dailyTotals: {},
+        allTimeTotal: 0,
+        trackingStartDate: '2026-01-15',
+        lastResetDate: '2026-06-05',
+        currentSessionStart: null
+      });
+      expect(resetWrite[0].timeTracking['broken.example.com']).toMatchObject({
+        dailyTotals: {},
+        allTimeTotal: 0,
+        trackingStartDate: '2026-06-05',
+        lastResetDate: '2026-06-05',
+        currentSessionStart: null
+      });
+    });
+
+    test('global tracking reset repairs malformed top-level tracking storage', async () => {
+      global.StorageUtils.getFromStorage = jest.fn((key) => {
+        if (key === 'domainTimers') {
+          return Promise.resolve({});
+        }
+        if (key === 'timeTracking') {
+          return Promise.resolve('corrupt');
+        }
+        return Promise.resolve(null);
+      });
+      global.StorageUtils.setToStorage = jest.fn(() => Promise.resolve());
+
+      require('../src/options.js');
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      global.StorageUtils.setToStorage.mockClear();
+      document.getElementById('resetAllTrackingButton').click();
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      const resetWrite = global.StorageUtils.setToStorage.mock.calls.find(
+        ([value]) => value.timeTracking
+      );
+
+      expect(resetWrite).toBeDefined();
+      expect(resetWrite[0].timeTracking).toEqual({});
+    });
+
+    test('renders non-finite time left values as invalid time', async () => {
+      const storedDomain = 'example.com';
+      const domainTimers = {
+        [storedDomain]: {
+          originalTime: 300,
+          timeLeft: Infinity,
+          resetInterval: 24,
+          lastResetTimestamp: Date.now(),
+          expiredMessageLogged: false
+        }
+      };
+
+      global.StorageUtils.getFromStorage = jest.fn((key) => {
+        if (key === 'domainTimers') {
+          return Promise.resolve(domainTimers);
+        }
+        if (key === 'timeTracking') {
+          return Promise.resolve({});
+        }
+        return Promise.resolve(null);
+      });
+      global.StorageUtils.setToStorage = jest.fn(() => Promise.resolve());
+
+      require('../src/options.js');
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      const timeLeftCell = document.querySelector('#domainListBody tr').cells[2];
+
+      expect(timeLeftCell.textContent).toBe('Invalid time');
+    });
+
+    test('renders non-finite time tracking totals as zero seconds', async () => {
+      const storedDomain = 'example.com';
+      const domainTimers = {
+        [storedDomain]: {
+          originalTime: 300,
+          timeLeft: 120,
+          resetInterval: 24,
+          lastResetTimestamp: Date.now(),
+          expiredMessageLogged: false
+        }
+      };
+      const timeTracking = {
+        [storedDomain]: {
+          dailyTotals: {},
+          allTimeTotal: Infinity,
+          trackingStartDate: '2026-06-05',
+          lastResetDate: '2026-06-05',
+          currentSessionStart: null,
+          lastActiveTimestamp: Date.now()
+        }
+      };
+
+      global.StorageUtils.getFromStorage = jest.fn((key) => {
+        if (key === 'domainTimers') {
+          return Promise.resolve(domainTimers);
+        }
+        if (key === 'timeTracking') {
+          return Promise.resolve(timeTracking);
+        }
+        return Promise.resolve(null);
+      });
+      global.StorageUtils.setToStorage = jest.fn(() => Promise.resolve());
+
+      require('../src/options.js');
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      const allTimeCell = document.querySelector('.time-tracking-cell[data-period="alltime"]');
+
+      expect(allTimeCell.textContent).toBe('0s');
+    });
+
+    test('does not write malformed global reset intervals into stored timers', async () => {
+      const storedDomain = 'example.com';
+      const domainTimers = {
+        [storedDomain]: {
+          originalTime: 300,
+          timeLeft: 120,
+          resetInterval: 24,
+          lastResetTimestamp: Date.now(),
+          expiredMessageLogged: false
+        }
+      };
+
+      global.StorageUtils.getFromStorage = jest.fn((key) => {
+        if (key === 'domainTimers') {
+          return Promise.resolve(domainTimers);
+        }
+        if (key === 'timeTracking') {
+          return Promise.resolve({});
+        }
+        return Promise.resolve(null);
+      });
+      global.StorageUtils.setToStorage = jest.fn(() => Promise.resolve());
+
+      require('../src/options.js');
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      global.StorageUtils.setToStorage.mockClear();
+      document.getElementById('globalReset24').value = 'not-a-number';
+      document
+        .getElementById('globalResetIntervalGroup')
+        .dispatchEvent(new Event('change', { bubbles: true }));
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      expect(global.StorageUtils.setToStorage).not.toHaveBeenCalled();
+      expect(domainTimers[storedDomain].resetInterval).toBe(24);
+    });
+
+    test('global reset interval skips malformed timer records instead of aborting the update', async () => {
+      const domainTimers = {
+        'example.com': {
+          originalTime: 300,
+          timeLeft: 120,
+          resetInterval: 24,
+          lastResetTimestamp: Date.now(),
+          expiredMessageLogged: false
+        },
+        'broken.example.com': null
+      };
+
+      global.StorageUtils.getFromStorage = jest.fn((key) => {
+        if (key === 'domainTimers') {
+          return Promise.resolve(domainTimers);
+        }
+        if (key === 'timeTracking') {
+          return Promise.resolve({});
+        }
+        return Promise.resolve(null);
+      });
+      global.StorageUtils.setToStorage = jest.fn(() => Promise.resolve());
+
+      require('../src/options.js');
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      global.StorageUtils.setToStorage.mockClear();
+      document.getElementById('globalReset8').checked = true;
+      document
+        .getElementById('globalResetIntervalGroup')
+        .dispatchEvent(new Event('change', { bubbles: true }));
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      const intervalWrite = global.StorageUtils.setToStorage.mock.calls.find(
+        ([value]) => value.domainTimers
+      );
+
+      expect(intervalWrite).toBeDefined();
+      expect(intervalWrite[0].domainTimers['example.com']).toMatchObject({
+        originalTime: 300,
+        timeLeft: 120,
+        resetInterval: 8,
+        expiredMessageLogged: false
+      });
+      expect(intervalWrite[0].domainTimers['broken.example.com']).toBeNull();
+    });
+
+    test('global reset interval repairs malformed top-level timer storage', async () => {
+      global.StorageUtils.getFromStorage = jest.fn((key) => {
+        if (key === 'domainTimers') {
+          return Promise.resolve('corrupt');
+        }
+        if (key === 'timeTracking') {
+          return Promise.resolve({});
+        }
+        return Promise.resolve(null);
+      });
+      global.StorageUtils.setToStorage = jest.fn(() => Promise.resolve());
+
+      require('../src/options.js');
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      global.StorageUtils.setToStorage.mockClear();
+      document.getElementById('globalReset8').checked = true;
+      document
+        .getElementById('globalResetIntervalGroup')
+        .dispatchEvent(new Event('change', { bubbles: true }));
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      const intervalWrite = global.StorageUtils.setToStorage.mock.calls.find(
+        ([value]) => value.domainTimers
+      );
+
+      expect(intervalWrite).toBeDefined();
+      expect(intervalWrite[0].domainTimers).toEqual({});
+    });
+
+    test('does not add a timer when selected time allowance is partially numeric', async () => {
+      const domainTimers = {};
+
+      global.StorageUtils.getFromStorage = jest.fn((key) => {
+        if (key === 'domainTimers') {
+          return Promise.resolve(domainTimers);
+        }
+        if (key === 'timeTracking') {
+          return Promise.resolve({});
+        }
+        return Promise.resolve(null);
+      });
+      global.StorageUtils.setToStorage = jest.fn(() => Promise.resolve());
+
+      require('../src/options.js');
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      global.StorageUtils.setToStorage.mockClear();
+      document.getElementById('urlInput').value = 'example.com';
+      document.getElementById('time5').value = '5abc';
+      document
+        .getElementById('siteForm')
+        .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      expect(global.StorageUtils.setToStorage).not.toHaveBeenCalled();
+      expect(domainTimers).toEqual({});
+    });
+
+    test('adds a timer when top-level domain timer storage is malformed', async () => {
+      global.StorageUtils.getFromStorage = jest.fn((key) => {
+        if (key === 'domainTimers') {
+          return Promise.resolve('corrupt');
+        }
+        if (key === 'timeTracking') {
+          return Promise.resolve({});
+        }
+        return Promise.resolve(null);
+      });
+      global.StorageUtils.setToStorage = jest.fn(() => Promise.resolve());
+
+      require('../src/options.js');
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      global.StorageUtils.setToStorage.mockClear();
+      document.getElementById('urlInput').value = 'example.com';
+      document
+        .getElementById('siteForm')
+        .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      const addWrite = global.StorageUtils.setToStorage.mock.calls.find(
+        ([value]) => value.domainTimers
+      );
+
+      expect(addWrite).toBeDefined();
+      expect(addWrite[0].domainTimers).toEqual({
+        'example.com': {
+          originalTime: 300,
+          timeLeft: 300,
+          resetInterval: 24,
+          lastResetTimestamp: expect.any(Number),
+          expiredMessageLogged: false
+        }
+      });
+    });
+
+    test('does not save inline timer settings when selected time allowance is partially numeric', async () => {
+      const storedDomain = 'example.com';
+      const domainTimers = {
+        [storedDomain]: {
+          originalTime: 300,
+          timeLeft: 120,
+          resetInterval: 24,
+          lastResetTimestamp: Date.now(),
+          expiredMessageLogged: false
+        }
+      };
+
+      global.StorageUtils.getFromStorage = jest.fn((key) => {
+        if (key === 'domainTimers') {
+          return Promise.resolve(domainTimers);
+        }
+        if (key === 'timeTracking') {
+          return Promise.resolve({});
+        }
+        return Promise.resolve(null);
+      });
+      global.StorageUtils.setToStorage = jest.fn(() => Promise.resolve());
+
+      require('../src/options.js');
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      const selectedTimeRadio = document.querySelector(
+        '[data-field="originalTime"] input[type="radio"]:checked'
+      );
+      selectedTimeRadio.value = '10abc';
+
+      global.StorageUtils.setToStorage.mockClear();
+      document.querySelector('.save-button-inline').click();
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      expect(global.StorageUtils.setToStorage).not.toHaveBeenCalled();
+      expect(domainTimers[storedDomain]).toMatchObject({
+        originalTime: 300,
+        timeLeft: 120,
+        resetInterval: 24
+      });
+    });
+
+    test('inline save repairs malformed top-level timer storage at click time', async () => {
+      const storedDomain = 'example.com';
+      let domainTimers = {
+        [storedDomain]: {
+          originalTime: 300,
+          timeLeft: 120,
+          resetInterval: 24,
+          lastResetTimestamp: Date.now(),
+          expiredMessageLogged: false
+        }
+      };
+
+      global.StorageUtils.getFromStorage = jest.fn((key) => {
+        if (key === 'domainTimers') {
+          return Promise.resolve(domainTimers);
+        }
+        if (key === 'timeTracking') {
+          return Promise.resolve({});
+        }
+        return Promise.resolve(null);
+      });
+      global.StorageUtils.setToStorage = jest.fn(() => Promise.resolve());
+
+      require('../src/options.js');
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      const saveButton = document.querySelector('.save-button-inline');
+      saveButton.disabled = false;
+
+      domainTimers = 'corrupt';
+      global.StorageUtils.setToStorage.mockClear();
+      saveButton.click();
+      for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
+      }
+
+      const saveWrite = global.StorageUtils.setToStorage.mock.calls.find(
+        ([value]) => value.domainTimers
+      );
+
+      expect(saveWrite).toBeDefined();
+      expect(saveWrite[0].domainTimers).toEqual({});
+    });
+  });
 });

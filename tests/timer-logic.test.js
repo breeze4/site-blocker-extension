@@ -142,6 +142,37 @@ describe('Timer Logic', () => {
       expect(wasReset).toBe(true);
       expect(timerData.timeLeft).toBe(300); // Fixed to match originalTime
     });
+
+    test('should handle corrupted state where timeLeft is non-finite', () => {
+      const corruptedTimer = {
+        originalTime: 300,
+        timeLeft: NaN,
+        resetInterval: 24,
+        lastResetTimestamp: Date.now(),
+        expiredMessageLogged: false
+      };
+
+      const { timerData, wasReset } = applyTimerSettingsChange(corruptedTimer, 300, 24);
+
+      expect(wasReset).toBe(true);
+      expect(timerData.timeLeft).toBe(300);
+    });
+
+    test('should handle corrupted state where timeLeft is negative', () => {
+      const corruptedTimer = {
+        originalTime: 300,
+        timeLeft: -10,
+        resetInterval: 24,
+        lastResetTimestamp: Date.now(),
+        expiredMessageLogged: true
+      };
+
+      const { timerData, wasReset } = applyTimerSettingsChange(corruptedTimer, 300, 24);
+
+      expect(wasReset).toBe(true);
+      expect(timerData.timeLeft).toBe(300);
+      expect(timerData.expiredMessageLogged).toBe(false);
+    });
   });
 
   describe('checkAndResetIfIntervalPassed', () => {
@@ -184,6 +215,44 @@ describe('Timer Logic', () => {
       const result = checkAndResetIfIntervalPassed(mockTimer, exactResetTime);
       
       expect(result.timeLeft).toBe(300);
+    });
+
+    test('should reset timer when last reset timestamp is non-finite', () => {
+      mockTimer.lastResetTimestamp = NaN;
+
+      const result = checkAndResetIfIntervalPassed(mockTimer, now);
+
+      expect(result.timeLeft).toBe(300);
+      expect(result.lastResetTimestamp).toBe(now);
+      expect(result.expiredMessageLogged).toBe(false);
+    });
+
+    test('should reset timer when reset interval is non-finite', () => {
+      mockTimer.resetInterval = NaN;
+
+      const result = checkAndResetIfIntervalPassed(mockTimer, now);
+
+      expect(result.timeLeft).toBe(300);
+      expect(result.lastResetTimestamp).toBe(now);
+      expect(result.expiredMessageLogged).toBe(false);
+    });
+
+    test('should replace an invalid reset interval with the default interval', () => {
+      mockTimer.resetInterval = NaN;
+
+      const result = checkAndResetIfIntervalPassed(mockTimer, now);
+
+      expect(result.resetInterval).toBe(24);
+    });
+
+    test('should not reset a timer to a non-finite original time', () => {
+      mockTimer.originalTime = Infinity;
+
+      const result = checkAndResetIfIntervalPassed(mockTimer, now);
+
+      expect(result.originalTime).toBe(0);
+      expect(result.timeLeft).toBe(0);
+      expect(result.expiredMessageLogged).toBe(true);
     });
   });
 
@@ -231,6 +300,14 @@ describe('Timer Logic', () => {
       mockTimer.timeLeft = -5;
       const result = decrementTimer(mockTimer);
       expect(result.timeLeft).toBe(0); // Should clamp to 0
+    });
+
+    test('should handle non-finite timeLeft values as expired', () => {
+      mockTimer.timeLeft = Infinity;
+      const result = decrementTimer(mockTimer);
+
+      expect(result.timeLeft).toBe(0);
+      expect(result.expiredMessageLogged).toBe(true);
     });
   });
 
@@ -317,6 +394,7 @@ describe('Timer Logic', () => {
       test('should handle invalid input', () => {
         expect(formatTime(-1)).toBe('Invalid time');
         expect(formatTime(NaN)).toBe('Invalid time');
+        expect(formatTime(Infinity)).toBe('Invalid time');
       });
     });
 
@@ -338,6 +416,7 @@ describe('Timer Logic', () => {
       test('should handle invalid input', () => {
         expect(formatTimeTracking(-1)).toBe('0s');
         expect(formatTimeTracking(NaN)).toBe('0s');
+        expect(formatTimeTracking(Infinity)).toBe('0s');
       });
     });
   });

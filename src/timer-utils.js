@@ -11,7 +11,11 @@
  */
 function shouldResetTimer(oldOriginalTime, newOriginalTime, currentTimeLeft) {
   const timeChanged = oldOriginalTime !== newOriginalTime;
-  const needsReset = timeChanged || currentTimeLeft > newOriginalTime;
+  const needsReset =
+    timeChanged ||
+    !Number.isFinite(currentTimeLeft) ||
+    currentTimeLeft < 0 ||
+    currentTimeLeft > newOriginalTime;
   return needsReset;
 }
 
@@ -48,15 +52,30 @@ function applyTimerSettingsChange(timerData, newOriginalTime, newResetInterval) 
  * @returns {Object} Updated timer data if reset needed, original otherwise
  */
 function checkAndResetIfIntervalPassed(timerData, currentTime = Date.now()) {
-  const resetIntervalMs = timerData.resetInterval * 60 * 60 * 1000;
+  const originalTime =
+    Number.isFinite(timerData.originalTime) && timerData.originalTime > 0
+      ? timerData.originalTime
+      : 0;
+  const resetInterval =
+    Number.isFinite(timerData.resetInterval) && timerData.resetInterval > 0
+      ? timerData.resetInterval
+      : 24;
+  const resetIntervalMs = resetInterval * 60 * 60 * 1000;
   const resetCanHappenAfterTimestamp = timerData.lastResetTimestamp + resetIntervalMs;
 
-  if (currentTime >= resetCanHappenAfterTimestamp) {
+  if (
+    !Number.isFinite(timerData.lastResetTimestamp) ||
+    timerData.resetInterval !== resetInterval ||
+    timerData.originalTime !== originalTime ||
+    currentTime >= resetCanHappenAfterTimestamp
+  ) {
     return {
       ...timerData,
-      timeLeft: timerData.originalTime,
+      originalTime,
+      resetInterval,
+      timeLeft: originalTime,
       lastResetTimestamp: currentTime,
-      expiredMessageLogged: false,
+      expiredMessageLogged: originalTime <= 0,
     };
   }
 
@@ -69,7 +88,7 @@ function checkAndResetIfIntervalPassed(timerData, currentTime = Date.now()) {
  * @returns {Object} Updated timer data
  */
 function decrementTimer(timerData) {
-  const newTimeLeft = Math.max(0, timerData.timeLeft - 1);
+  const newTimeLeft = Number.isFinite(timerData.timeLeft) ? Math.max(0, timerData.timeLeft - 1) : 0;
   const result = {
     ...timerData,
     timeLeft: newTimeLeft,
@@ -153,7 +172,7 @@ function validateDomain(hostname) {
  * @returns {string} Formatted time string
  */
 function formatTime(totalSeconds) {
-  if (isNaN(totalSeconds) || totalSeconds < 0) {
+  if (!Number.isFinite(totalSeconds) || totalSeconds < 0) {
     return "Invalid time";
   }
   const minutes = Math.floor(totalSeconds / 60);
@@ -167,7 +186,7 @@ function formatTime(totalSeconds) {
  * @returns {string} Formatted time string
  */
 function formatTimeTracking(totalSeconds) {
-  if (isNaN(totalSeconds) || totalSeconds < 0) {
+  if (!Number.isFinite(totalSeconds) || totalSeconds < 0) {
     return "0s";
   }
 

@@ -51,7 +51,11 @@ const defaultDomainTimers = {
 
 // This variable will hold the interval ID for the currently active timer. There should only be one timer running at any given time.
 let activeTimerIntervalId = null;
+let activeTimerTabId = null;
+let activeTimerDomain = null;
 let handlingTimerForTab = false; // Prevent concurrent handleTimerForTab calls
+let pendingTimerTab = null;
+let browserHasFocus = true;
 
 // Asynchronously retrieves the domain timers from storage. This function serves as a single point of access to the stored timers.
 async function getDomainTimers() {
@@ -69,7 +73,7 @@ async function getDomainTimers() {
 async function getTimeTracking() {
   try {
     const timeTracking = await getFromStorage("timeTracking");
-    return timeTracking;
+    return isTimeTrackingRecord(timeTracking) ? timeTracking : {};
   } catch (error) {}
   return null;
 }
@@ -88,22 +92,35 @@ async function saveTimeTracking(timeTracking) {
   } catch (error) {}
 }
 
+function isTimeTrackingRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isTimerRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function createEmptyTimeTrackingRecord(currentDate) {
+  return {
+    dailyTotals: {},
+    allTimeTotal: 0,
+    trackingStartDate: currentDate,
+    lastResetDate: currentDate,
+    currentSessionStart: null,
+    lastActiveTimestamp: Date.now(),
+  };
+}
+
 // Initialize time tracking data structure for a domain if it doesn't exist
 async function initializeDomainTimeTracking(domain) {
   try {
-    const timeTracking = (await getTimeTracking()) || {};
+    const storedTimeTracking = await getTimeTracking();
+    const timeTracking = isTimeTrackingRecord(storedTimeTracking) ? storedTimeTracking : {};
 
     // Only initialize if domain doesn't already exist
-    if (!timeTracking[domain]) {
+    if (!isTimeTrackingRecord(timeTracking[domain])) {
       const currentDate = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
-      timeTracking[domain] = {
-        dailyTotals: {},
-        allTimeTotal: 0,
-        trackingStartDate: currentDate,
-        lastResetDate: currentDate,
-        currentSessionStart: null,
-        lastActiveTimestamp: Date.now(),
-      };
+      timeTracking[domain] = createEmptyTimeTrackingRecord(currentDate);
 
       await saveTimeTracking(timeTracking);
     }
@@ -112,9 +129,17 @@ async function initializeDomainTimeTracking(domain) {
 
 // This function checks if any of the timers have expired and need to be reset. This is based on the `resetInterval` set for each domain.
 async function resetTimersIfNeeded(domainTimers) {
+  if (!isTimerRecord(domainTimers)) {
+    return {};
+  }
+
   const currentTime = Date.now();
 
   for (const [domain, timerData] of Object.entries(domainTimers)) {
+    if (!isTimerRecord(timerData)) {
+      continue;
+    }
+
     // Use TimerUtils function if available (should be available after importScripts)
     if (typeof TimerUtils !== "undefined" && TimerUtils.checkAndResetIfIntervalPassed) {
       domainTimers[domain] = TimerUtils.checkAndResetIfIntervalPassed(timerData, currentTime);
@@ -143,21 +168,25 @@ async function calculateTimeSpent(domain, period) {
       return 0;
     }
 
-    // Handle all-time period
-    if (period === "alltime") {
-      return domainData.allTimeTotal || 0;
-    }
-
-    // Calculate rolling window periods
-    const now = new Date();
-    const currentDate = now.toISOString().split("T")[0]; // YYYY-MM-DD format
     let totalSeconds = 0;
 
     // Add current session time if there's an active session
     if (domainData.currentSessionStart) {
       const currentSessionTime = Math.floor((Date.now() - domainData.currentSessionStart) / 1000);
-      totalSeconds += currentSessionTime;
+      totalSeconds += Math.max(0, currentSessionTime);
     }
+
+    // Handle all-time period
+    if (period === "alltime") {
+      const allTimeTotal =
+        Number.isFinite(domainData.allTimeTotal) && domainData.allTimeTotal >= 0
+          ? domainData.allTimeTotal
+          : 0;
+      return allTimeTotal + totalSeconds;
+    }
+
+    // Calculate rolling window periods
+    const now = new Date();
 
     // Determine date range based on period
     let daysToCheck = 0;
@@ -181,8 +210,9 @@ async function calculateTimeSpent(domain, period) {
       date.setDate(date.getDate() - i);
       const dateString = date.toISOString().split("T")[0];
 
-      if (domainData.dailyTotals && domainData.dailyTotals[dateString]) {
-        totalSeconds += domainData.dailyTotals[dateString];
+      const dailyTotal = domainData.dailyTotals && domainData.dailyTotals[dateString];
+      if (Number.isFinite(dailyTotal) && dailyTotal >= 0) {
+        totalSeconds += dailyTotal;
       }
     }
 
@@ -226,6 +256,20 @@ async function cleanupOldTimeTrackingData() {
   } catch (error) {}
 }
 
+function addSessionDurationToTracking(data, currentDate, sessionDuration) {
+  if (!data.dailyTotals) {
+    data.dailyTotals = {};
+  }
+
+  const dailyTotal = data.dailyTotals[currentDate];
+  const safeDailyTotal = Number.isFinite(dailyTotal) && dailyTotal >= 0 ? dailyTotal : 0;
+  data.dailyTotals[currentDate] = safeDailyTotal + sessionDuration;
+
+  const allTimeTotal =
+    Number.isFinite(data.allTimeTotal) && data.allTimeTotal >= 0 ? data.allTimeTotal : 0;
+  data.allTimeTotal = allTimeTotal + sessionDuration;
+}
+
 // End idle sessions (sessions that have been inactive for more than 2 minutes)
 async function endIdleSessions() {
   try {
@@ -235,23 +279,21 @@ async function endIdleSessions() {
     const currentDate = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
 
     for (const [domain, data] of Object.entries(timeTracking)) {
+      if (browserHasFocus && activeTimerIntervalId && activeTimerDomain === domain) {
+        continue;
+      }
+
       if (data.currentSessionStart && data.lastActiveTimestamp) {
         const timeSinceLastActive = currentTime - data.lastActiveTimestamp;
 
         if (timeSinceLastActive >= IDLE_TIMEOUT) {
           // Calculate session duration up to the idle point
-          const sessionDuration = Math.floor(
-            (data.lastActiveTimestamp - data.currentSessionStart) / 1000
+          const sessionDuration = Math.max(
+            0,
+            Math.floor((data.lastActiveTimestamp - data.currentSessionStart) / 1000)
           );
 
-          // Save session duration to daily totals
-          if (!data.dailyTotals) {
-            data.dailyTotals = {};
-          }
-          data.dailyTotals[currentDate] = (data.dailyTotals[currentDate] || 0) + sessionDuration;
-
-          // Update all-time total
-          data.allTimeTotal = (data.allTimeTotal || 0) + sessionDuration;
+          addSessionDurationToTracking(data, currentDate, sessionDuration);
 
           // Clear the active session
           data.currentSessionStart = null;
@@ -271,16 +313,12 @@ async function endAllActiveSessions() {
     for (const [domain, data] of Object.entries(timeTracking)) {
       if (data.currentSessionStart) {
         // Calculate session duration
-        const sessionDuration = Math.floor((Date.now() - data.currentSessionStart) / 1000);
+        const sessionDuration = Math.max(
+          0,
+          Math.floor((Date.now() - data.currentSessionStart) / 1000)
+        );
 
-        // Save session duration to daily totals
-        if (!data.dailyTotals) {
-          data.dailyTotals = {};
-        }
-        data.dailyTotals[currentDate] = (data.dailyTotals[currentDate] || 0) + sessionDuration;
-
-        // Update all-time total
-        data.allTimeTotal = (data.allTimeTotal || 0) + sessionDuration;
+        addSessionDurationToTracking(data, currentDate, sessionDuration);
 
         // Clear the active session
         data.currentSessionStart = null;
@@ -291,6 +329,26 @@ async function endAllActiveSessions() {
   } catch (error) {}
 }
 
+async function stopActiveTimerAndTracking() {
+  if (activeTimerIntervalId) {
+    clearInterval(activeTimerIntervalId);
+    activeTimerIntervalId = null;
+  }
+  activeTimerTabId = null;
+  activeTimerDomain = null;
+  await endAllActiveSessions();
+}
+
+async function refreshActiveSessionTimestamp(domain) {
+  try {
+    const timeTracking = (await getTimeTracking()) || {};
+    if (timeTracking[domain]?.currentSessionStart) {
+      timeTracking[domain].lastActiveTimestamp = Date.now();
+      await saveTimeTracking(timeTracking);
+    }
+  } catch (error) {}
+}
+
 // This function contains the core logic for starting and stopping timers based on the active tab.
 async function handleTimerForTab(tab) {
   debugLog("Handling timer for tab:", tab?.url);
@@ -298,11 +356,17 @@ async function handleTimerForTab(tab) {
   // Prevent concurrent execution
   if (handlingTimerForTab) {
     console.log("[TIMER DEBUG] Already handling timer for tab, skipping concurrent call");
+    pendingTimerTab = tab;
     return;
   }
   handlingTimerForTab = true;
 
   try {
+    if (!browserHasFocus) {
+      pendingTimerTab = null;
+      return;
+    }
+
     // End any active time tracking sessions before starting new one
     await endAllActiveSessions();
 
@@ -311,6 +375,8 @@ async function handleTimerForTab(tab) {
       console.log("[TIMER DEBUG] Clearing existing interval:", activeTimerIntervalId);
       clearInterval(activeTimerIntervalId);
       activeTimerIntervalId = null;
+      activeTimerTabId = null;
+      activeTimerDomain = null;
       debugLog("Cleared previous timer");
     }
 
@@ -351,29 +417,43 @@ async function handleTimerForTab(tab) {
     // Initialize time tracking for this domain and start session
     await initializeDomainTimeTracking(domain);
 
-    // Record session start timestamp for time tracking
-    const timeTracking = (await getTimeTracking()) || {};
-    if (timeTracking[domain]) {
-      timeTracking[domain].currentSessionStart = Date.now();
-      timeTracking[domain].lastActiveTimestamp = Date.now();
-      await saveTimeTracking(timeTracking);
-      debugLog("Started time tracking session for:", domain);
+    if (!browserHasFocus) {
+      pendingTimerTab = null;
+      return;
     }
 
-    if (domainTimer.timeLeft > 0) {
+    if (Number.isFinite(domainTimer.timeLeft) && domainTimer.timeLeft > 0) {
+      // Record session start timestamp for time tracking
+      const timeTracking = (await getTimeTracking()) || {};
+      if (timeTracking[domain]) {
+        timeTracking[domain].currentSessionStart = Date.now();
+        timeTracking[domain].lastActiveTimestamp = Date.now();
+        await saveTimeTracking(timeTracking);
+        debugLog("Started time tracking session for:", domain);
+      }
+
       debugLog("Starting timer countdown for:", domain, "seconds remaining:", domainTimer.timeLeft);
       console.log(
         "[TIMER DEBUG] Starting new interval, previous intervalId:",
         activeTimerIntervalId
       );
       activeTimerIntervalId = setInterval(async () => {
+        if (!browserHasFocus) {
+          await stopActiveTimerAndTracking();
+          return;
+        }
+
         // Check if the current active tab is still on this domain
         try {
           const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (!browserHasFocus) {
+            await stopActiveTimerAndTracking();
+            return;
+          }
+
           if (tabs.length === 0 || !tabs[0].url) {
             // No active tab or no URL, stop the timer
-            clearInterval(activeTimerIntervalId);
-            activeTimerIntervalId = null;
+            await stopActiveTimerAndTracking();
             return;
           }
 
@@ -382,24 +462,28 @@ async function handleTimerForTab(tab) {
 
           // If we've switched to a different domain, stop this timer
           if (activeDomain !== domain) {
-            clearInterval(activeTimerIntervalId);
-            activeTimerIntervalId = null;
+            await stopActiveTimerAndTracking();
             return;
           }
         } catch (error) {
           // Error checking active tab, stop the timer
-          clearInterval(activeTimerIntervalId);
-          activeTimerIntervalId = null;
+          await stopActiveTimerAndTracking();
           return;
         }
 
         // Re-read timers from storage to get any updates from options page
         const currentTimers = await getDomainTimers();
-        if (!currentTimers || !currentTimers[domain]) {
-          clearInterval(activeTimerIntervalId);
-          activeTimerIntervalId = null;
+        if (!browserHasFocus) {
+          await stopActiveTimerAndTracking();
           return;
         }
+
+        if (!currentTimers || !currentTimers[domain]) {
+          await stopActiveTimerAndTracking();
+          return;
+        }
+
+        await refreshActiveSessionTimestamp(domain);
 
         // Use TimerUtils to decrement if available
         console.log(
@@ -426,8 +510,7 @@ async function handleTimerForTab(tab) {
           if (currentTimers[domain].expiredMessageLogged) {
             debugLog("Timer expired for domain:", domain);
           }
-          clearInterval(activeTimerIntervalId);
-          activeTimerIntervalId = null;
+          await stopActiveTimerAndTracking();
 
           // Redirect the current active tab to new tab page when timer expires
           try {
@@ -448,6 +531,8 @@ async function handleTimerForTab(tab) {
           }
         }
       }, 1000);
+      activeTimerTabId = tab.id;
+      activeTimerDomain = domain;
     } else {
       if (!domainTimer.expiredMessageLogged) {
         debugLog("Timer already expired for domain:", domain, "blocking navigation");
@@ -459,6 +544,11 @@ async function handleTimerForTab(tab) {
     }
   } finally {
     handlingTimerForTab = false;
+    if (pendingTimerTab) {
+      const nextTab = pendingTimerTab;
+      pendingTimerTab = null;
+      await handleTimerForTab(nextTab);
+    }
   }
 }
 
@@ -483,13 +573,18 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 // Listen for window focus changes to handle cases where user switches to different browser window
 chrome.windows.onFocusChanged.addListener(async (windowId) => {
   if (windowId === chrome.windows.WINDOW_ID_NONE) {
+    browserHasFocus = false;
+    pendingTimerTab = null;
     // Browser lost focus entirely, stop timer
     if (activeTimerIntervalId) {
       clearInterval(activeTimerIntervalId);
       activeTimerIntervalId = null;
+      activeTimerTabId = null;
+      activeTimerDomain = null;
     }
     await endAllActiveSessions();
   } else {
+    browserHasFocus = true;
     // Browser gained focus, check current active tab
     try {
       const tabs = await chrome.tabs.query({ active: true, windowId: windowId });
@@ -505,6 +600,10 @@ chrome.windows.onFocusChanged.addListener(async (windowId) => {
 // Listen for when a tab is closed to end any active time tracking sessions
 chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
   try {
+    if (activeTimerTabId !== tabId) {
+      return;
+    }
+
     // Check if the closed tab was the active tab with a timer running
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
 
@@ -514,6 +613,8 @@ chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
       // Get info about what domain the timer was for before clearing
       clearInterval(activeTimerIntervalId);
       activeTimerIntervalId = null;
+      activeTimerTabId = null;
+      activeTimerDomain = null;
 
       // End all active sessions when a tracked tab is closed
       await endAllActiveSessions();
@@ -528,6 +629,8 @@ chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
     if (activeTimerIntervalId) {
       clearInterval(activeTimerIntervalId);
       activeTimerIntervalId = null;
+      activeTimerTabId = null;
+      activeTimerDomain = null;
     }
     await endAllActiveSessions();
   }
@@ -566,14 +669,14 @@ async function initialize() {
   debugLog("Initializing Site Blocker extension", "Debug mode:", isDebugMode);
 
   const timers = await getDomainTimers();
-  if (!timers) {
+  if (!isTimerRecord(timers)) {
     debugLog("No existing timers found, initializing with defaults");
     await setToStorage({ domainTimers: defaultDomainTimers });
   }
 
   // Initialize time tracking storage if it doesn't exist
   const timeTracking = await getFromStorage("timeTracking");
-  if (!timeTracking) {
+  if (!isTimeTrackingRecord(timeTracking)) {
     debugLog("Initializing time tracking storage");
     await setToStorage({ timeTracking: {} });
   }

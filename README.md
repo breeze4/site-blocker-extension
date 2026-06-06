@@ -13,10 +13,10 @@ site-blocker-extension/
 │   ├── options.html        # Options page UI
 │   ├── options.js          # Options page logic
 │   ├── storage-utils.js    # Storage utilities
+│   ├── timer-utils.js      # Timer calculation helpers
 │   └── icons/              # Extension icons (PNG)
 ├── scripts/                # Build and distribution scripts
-│   ├── prepare-distribution.ps1  # Distribution packaging
-│   └── dev-helper.ps1      # Development shortcuts
+│   └── package.mjs         # Distribution packaging (npm run package)
 ├── docs/                   # Project documentation
 │   ├── README.md           # Extension user documentation
 │   ├── SPEC.md             # Technical specifications
@@ -35,7 +35,7 @@ site-blocker-extension/
 ## Quick Start
 
 ### Development
-```powershell
+```
 # Load extension in Chrome
 1. Open chrome://extensions/
 2. Enable Developer mode
@@ -44,11 +44,13 @@ site-blocker-extension/
 ```
 
 ### Distribution
-```powershell
-# Create distribution package
-cd scripts
-.\prepare-distribution.ps1
+```bash
+# Create the Chrome Web Store distribution package (dist/)
+npm run package
 ```
+Builds `dist/extension/`, copies store assets, and produces
+`dist/site-timer-blocker-v<version>.zip` ready for upload. Requires the
+system `zip` command (preinstalled on macOS and Linux).
 
 ### Documentation
 - **Extension features**: docs/README.md

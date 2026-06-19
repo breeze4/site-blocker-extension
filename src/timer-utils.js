@@ -211,6 +211,56 @@ function formatTimeTracking(totalSeconds) {
   }
 }
 
+/**
+ * Generate a readable random pause password (e.g. "abcd-efgh-jkmn").
+ * Uses crypto.getRandomValues for quality randomness. The charset omits
+ * visually ambiguous characters (0/o/1/l/i) to keep it easy to copy.
+ * @returns {string} A grouped lowercase code
+ */
+function generatePausePassword() {
+  const charset = "abcdefghjkmnpqrstuvwxyz23456789";
+  const groupCount = 3;
+  const groupLength = 4;
+  const cryptoObj = typeof crypto !== "undefined" ? crypto : globalThis.crypto;
+  const bytes = new Uint8Array(groupCount * groupLength);
+  cryptoObj.getRandomValues(bytes);
+
+  const groups = [];
+  for (let g = 0; g < groupCount; g++) {
+    let group = "";
+    for (let i = 0; i < groupLength; i++) {
+      const byte = bytes[g * groupLength + i];
+      group += charset[byte % charset.length];
+    }
+    groups.push(group);
+  }
+  return groups.join("-");
+}
+
+/**
+ * Normalize a pause password for comparison (trim + lowercase).
+ * @param {string} value - Raw password value
+ * @returns {string} Normalized value, or "" for non-strings
+ */
+function normalizePausePassword(value) {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+/**
+ * Check whether an entered password matches the stored one.
+ * An empty/missing stored password never matches.
+ * @param {string} input - Password the user typed
+ * @param {string} stored - Currently stored pause password
+ * @returns {boolean} Whether the entry is correct
+ */
+function checkPausePassword(input, stored) {
+  const normalizedStored = normalizePausePassword(stored);
+  if (!normalizedStored) {
+    return false;
+  }
+  return normalizePausePassword(input) === normalizedStored;
+}
+
 // Export for Node.js (testing) environment
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
@@ -222,6 +272,9 @@ if (typeof module !== "undefined" && module.exports) {
     validateDomain,
     formatTime,
     formatTimeTracking,
+    generatePausePassword,
+    normalizePausePassword,
+    checkPausePassword,
   };
 } else if (typeof window !== "undefined") {
   // Browser environment - make functions globally available
@@ -234,6 +287,9 @@ if (typeof module !== "undefined" && module.exports) {
     validateDomain,
     formatTime,
     formatTimeTracking,
+    generatePausePassword,
+    normalizePausePassword,
+    checkPausePassword,
   };
 } else {
   // Service worker environment - make functions globally available
@@ -246,5 +302,8 @@ if (typeof module !== "undefined" && module.exports) {
     validateDomain,
     formatTime,
     formatTimeTracking,
+    generatePausePassword,
+    normalizePausePassword,
+    checkPausePassword,
   };
 }

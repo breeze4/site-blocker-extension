@@ -338,7 +338,31 @@
       display: flex;
       gap: 10px;
     }
-    
+
+    .pause-password-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    .pause-password-input {
+      font-family: monospace;
+      font-size: 16px;
+      letter-spacing: 1px;
+      padding: 10px 12px;
+      border: 2px solid #ddd;
+      border-radius: 4px;
+      width: 200px;
+      background-color: #f9f9f9;
+    }
+    .pause-password-status {
+      margin-top: 8px;
+      font-size: 13px;
+      min-height: 16px;
+      color: #2e7d32;
+    }
+
     /* Dark mode support */
     @media (prefers-color-scheme: dark) {
       body {
@@ -370,7 +394,13 @@
       .url-input:focus {
         border-color: #66BB6A;
       }
-      
+
+      .pause-password-input {
+        background-color: #2d2d2d;
+        color: #e0e0e0;
+        border-color: #555555;
+      }
+
       /* Radio buttons dark mode */
       .radio-option label,
       .table-radio-option label {
@@ -524,6 +554,21 @@
       </div>
     </div>
     <div id="global-reset-help" class="sr-only">Choose how often site timers reset automatically</div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Pause Password</legend>
+    <p id="pause-password-help">
+      To pause blocking from the toolbar, copy this code and enter it in the popup.
+      It changes every time blocking is paused, so you have to come back here each time.
+    </p>
+    <div class="pause-password-row">
+      <input type="text" id="pausePasswordValue" class="pause-password-input" readonly
+        aria-label="Current pause password" aria-describedby="pause-password-help">
+      <button type="button" id="copyPausePasswordButton" class="secondary-button">Copy</button>
+      <button type="button" id="regeneratePausePasswordButton" class="reset-tracking-button">Regenerate</button>
+    </div>
+    <div id="pausePasswordStatus" class="pause-password-status" role="status" aria-live="polite"></div>
   </fieldset>
 
   <h2>Add/Update a Site</h2>

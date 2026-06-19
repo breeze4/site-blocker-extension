@@ -34,7 +34,9 @@ export default [
         Event: "readonly",
         localStorage: "readonly",
         location: "readonly",
-        
+        navigator: "readonly",
+        crypto: "readonly",
+
         // Chrome extension globals
         chrome: "readonly",
         importScripts: "readonly",
@@ -71,7 +73,7 @@ export default [
   },
   {
     // Specific rules for files that use storage-utils functions
-    files: ["src/background.js", "src/content.js", "src/options.js"],
+    files: ["src/background.js", "src/content.js", "src/options.js", "src/popup.js"],
     languageOptions: {
       globals: {
         isDebugMode: "readonly",

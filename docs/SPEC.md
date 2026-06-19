@@ -36,6 +36,14 @@ When you want very limited access to sites, just enough to view random links you
 * Smart handling of subdomains and www prefixes
 * Domain-based table sorting for logical organization
 
+### Toolbar Popup
+* Click the toolbar icon to open a compact popup for the current tab
+* Shows the current site's remaining time and a progress bar relative to its limit
+* One-click "Block this site" to start tracking the current domain with sensible defaults
+* Password-gated "Pause blocking" to temporarily disable enforcement across all sites
+* Quick link to open the full Options page
+* Graceful states for untracked sites and non-trackable pages (e.g. chrome:// pages)
+
 ## Technical Specifications
 
 This is a Chrome extension designed to limit the time spent on specific websites.
@@ -232,6 +240,63 @@ async function calculateTimeSpent(domain, period) { /* ... */ }
 - **Flexible Reset**: Individual and global reset options provide fresh starts
 - **Seamless Integration**: Analytics layer doesn't interfere with core blocking functionality
 
+# Feature: Toolbar Popup
+
+A compact browser-action popup that gives at-a-glance status and quick controls for the active tab without opening the full Options page.
+
+## Purpose
+
+The Options page is a full tab and is heavyweight for routine checks ("how much time do I have left on this site?") and quick actions ("block this site I just landed on", "pause blocking for a bit"). The popup fills that gap as the primary lightweight entry point to the extension.
+
+## Manifest Integration
+
+- Adds an `action` entry to the manifest with `default_popup` pointing at `popup.html` and a `default_title`.
+- Reuses existing manifest `icons` for the toolbar button.
+- No new permissions are required. The popup uses already-granted `tabs`/`activeTab` to read the current tab URL and `storage` to read/write timer and pause state.
+
+## Popup UI (`popup.html` and `popup.js`)
+
+- `popup.html` is a small fixed-width document styled to match the Options design system (same color palette and button styles). Styles are inline (allowed by the existing extension-pages CSP); logic lives in an external `popup.js`.
+- `popup.js` loads shared helpers (`storage-utils.js`, `timer-utils.js`) the same way other entry points do.
+
+### Displayed State
+
+- Current domain (hostname of the active tab).
+- Time left for that domain and a progress bar showing `timeLeft` relative to `originalTime`.
+- The remaining time refreshes about once per second while the popup is open by re-reading storage (the background service worker is the single writer that decrements it).
+
+### Controls
+
+- **Block this site**: shown when the active tab is a trackable site that is not yet tracked. Adds the current hostname to `domainTimers` using a default time limit and the current global reset interval (inherited from existing domains, falling back to 24h). After adding, the popup refreshes to show the live timer.
+- **Pause blocking (password-gated)**: when not paused, the popup shows a password input and a Pause button. The user must type the current pause password (which is only visible on the Options page). A correct entry sets `blockingPaused` to `true` and immediately rotates `pausePassword` to a new value. A wrong entry shows an error and does nothing.
+- **Resume blocking**: when paused, the popup shows a one-click Resume button (no password required — re-enabling enforcement is always frictionless).
+- **Options**: opens the full Options page.
+
+### Empty / Edge States
+
+- Untracked-but-trackable site: shows "not tracked yet" with the Block button available.
+- Non-trackable page (e.g. `chrome://`, `chrome-extension://`, `about:`, blank): shows an informational message; only the Pause toggle and Options link remain meaningful.
+
+## Pause Behavior
+
+`blockingPaused` is a global boolean. When `true`:
+
+- The background service worker does not start or decrement timers and does not redirect expired tabs.
+- The content script does not replace page content with the blocked message.
+- Pausing stops any active timer and ends active tracking sessions; resuming re-evaluates the current active tab.
+
+Pause stays on until the user clicks Resume. Time tracking is not accrued while paused, consistent with timers not running.
+
+## Pause Password (friction, not security)
+
+Pausing is deliberately hard so it is a conscious choice rather than an impulse:
+
+- A random `pausePassword` (a readable code such as `xxxx-xxxx-xxxx`) is generated on install and stored in `chrome.storage.local`. It is generated with `crypto.getRandomValues`.
+- The password is shown **only** on the Options page, with a Copy button and a Regenerate button. To pause, the user must open Options, copy the current code, return to the popup, and enter it.
+- On a successful pause the password **rotates** to a new value immediately, so every pause requires a fresh trip to the Options page — the code can never be memorized.
+- This is a self-control friction device, not a security boundary; the value is stored in plaintext in local storage.
+- The password generator is implemented as a pure function in `timer-utils.js` so it is unit-testable.
+
 # Chrome Storage Data Models
 
 This section documents all data structures stored in `chrome.storage.local` by the extension.
@@ -330,6 +395,30 @@ timeTracking: {
 - **Last 7d**: Sum of daily totals for last 7 days + current active session time
 - **Last 30d**: Sum of daily totals for last 30 days + current active session time  
 - **All Time**: Direct value from `allTimeTotal` + current active session time
+
+## 3. blockingPaused
+
+Global flag controlling whether blocking enforcement is active. Powers the popup's "Pause all blocking" toggle.
+
+### Data Structure
+```javascript
+blockingPaused: false  // boolean - when true, timers do not run and pages are not blocked
+```
+
+### Field Description
+- **`blockingPaused`**: When `true`, the background service worker suspends timer countdown and tab redirects, and the content script skips the blocked-page message. Defaults to `false` and is initialized on first install. Set to `true` from the toolbar popup only after a correct password entry; cleared (Resume) with one click.
+
+## 4. pausePassword
+
+Random code that gates pausing from the popup. See "Pause Password" under the Toolbar Popup feature.
+
+### Data Structure
+```javascript
+pausePassword: "7f3k-92qd-x8mn"  // string - current code required to pause; rotates after each pause
+```
+
+### Field Description
+- **`pausePassword`**: A readable random code generated with `crypto.getRandomValues` on install. Displayed only on the Options page (with Copy/Regenerate). Required in the popup to set `blockingPaused` to `true`, and rotated to a new value on every successful pause and on manual Regenerate.
 
 ## Storage Management
 

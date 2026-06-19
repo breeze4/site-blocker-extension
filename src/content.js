@@ -2,6 +2,12 @@
 
 async function checkDomainBlocked() {
   try {
+    // If blocking is paused globally, never block the page.
+    const blockingPaused = await StorageUtils.getFromStorage("blockingPaused");
+    if (blockingPaused === true) {
+      return;
+    }
+
     // Retrieve the domain timers from local storage.
     const domainTimers = (await StorageUtils.getFromStorage("domainTimers")) || {};
     // Get the current page's URL and extract the hostname.

@@ -15,6 +15,10 @@
     "activeTab",
     "tabs"
   ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Site Timer Blocker"
+  },
   "background": {
     "service_worker": "background.js"
   },

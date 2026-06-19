@@ -35,6 +35,11 @@ function loadBackgroundWithStorage(storage) {
           callback();
         }),
       },
+      onChanged: {
+        addListener: jest.fn((listener) => {
+          listeners.storageChanged = listener;
+        }),
+      },
     },
     tabs: {
       create: jest.fn(),
@@ -73,6 +78,7 @@ function loadBackgroundWithStorage(storage) {
     URL,
     Date,
     Promise,
+    crypto: require("crypto").webcrypto,
     clearInterval,
     setInterval: jest.fn((callback, delay) => {
       const interval = { callback, delay };
@@ -890,6 +896,121 @@ describe("background service worker session accounting", () => {
 
     expect(tickSettled).toBe(true);
     expect(focusSettled).toBe(true);
+    expect(storage.domainTimers["example.com"].timeLeft).toBe(300);
+  });
+
+  test("paused blocking does not start a countdown timer", async () => {
+    const storage = {
+      domainTimers: {
+        "example.com": {
+          originalTime: 300,
+          timeLeft: 300,
+          resetInterval: 24,
+          lastResetTimestamp: Date.now(),
+          expiredMessageLogged: false,
+        },
+      },
+      timeTracking: {},
+      blockingPaused: true,
+      pausePassword: "abcd-efgh-jkmn",
+    };
+
+    const { chrome, intervals, listeners } = loadBackgroundWithStorage(storage);
+    for (let i = 0; i < 20; i++) {
+      await Promise.resolve();
+    }
+
+    await listeners.updated(
+      1,
+      { status: "complete" },
+      { id: 1, active: true, url: "https://example.com/feed" }
+    );
+    for (let i = 0; i < 10; i++) {
+      await Promise.resolve();
+    }
+
+    // The 1000ms interval is the per-second countdown; it must never start while paused.
+    const countdownIntervals = intervals.filter((iv) => iv.delay === 1000);
+    expect(countdownIntervals).toHaveLength(0);
+    expect(chrome.tabs.update).not.toHaveBeenCalled();
+  });
+
+  test("paused blocking does not redirect an expired tab", async () => {
+    const storage = {
+      domainTimers: {
+        "example.com": {
+          originalTime: 300,
+          timeLeft: 0,
+          resetInterval: 24,
+          lastResetTimestamp: Date.now(),
+          expiredMessageLogged: true,
+        },
+      },
+      timeTracking: {},
+      blockingPaused: true,
+      pausePassword: "abcd-efgh-jkmn",
+    };
+
+    const { chrome, listeners } = loadBackgroundWithStorage(storage);
+    for (let i = 0; i < 10; i++) {
+      await Promise.resolve();
+    }
+
+    await listeners.updated(
+      1,
+      { status: "complete" },
+      { id: 1, active: true, url: "https://example.com/feed" }
+    );
+
+    expect(chrome.tabs.update).not.toHaveBeenCalled();
+  });
+
+  test("pausing via a storage change stops the running countdown", async () => {
+    const storage = {
+      domainTimers: {
+        "example.com": {
+          originalTime: 300,
+          timeLeft: 300,
+          resetInterval: 24,
+          lastResetTimestamp: Date.now(),
+          expiredMessageLogged: false,
+        },
+      },
+      timeTracking: {},
+      blockingPaused: false,
+      pausePassword: "abcd-efgh-jkmn",
+    };
+
+    const { chrome, intervals, listeners, savedWrites } = loadBackgroundWithStorage(storage);
+    for (let i = 0; i < 10; i++) {
+      await Promise.resolve();
+    }
+
+    chrome.tabs.query.mockResolvedValue([{ id: 1, active: true, url: "https://example.com/feed" }]);
+    await listeners.updated(
+      1,
+      { status: "complete" },
+      { id: 1, active: true, url: "https://example.com/feed" }
+    );
+    for (let i = 0; i < 10; i++) {
+      await Promise.resolve();
+    }
+
+    const countdown = intervals.find((iv) => iv.delay === 1000);
+    expect(countdown).toBeDefined();
+
+    // Simulate the popup pausing by writing blockingPaused to storage.
+    await listeners.storageChanged({ blockingPaused: { newValue: true } }, "local");
+
+    savedWrites.length = 0;
+
+    // The next countdown tick must bail out without decrementing the timer.
+    await countdown.callback();
+
+    const decrementWrites = savedWrites.filter(
+      (write) => write.domainTimers && write.domainTimers["example.com"].timeLeft < 300
+    );
+    expect(decrementWrites).toHaveLength(0);
     expect(storage.domainTimers["example.com"].timeLeft).toBe(300);
   });
 });

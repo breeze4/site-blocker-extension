@@ -12,6 +12,8 @@ site-blocker-extension/
 │   ├── content.js          # Content script
 │   ├── options.html        # Options page UI
 │   ├── options.js          # Options page logic
+│   ├── popup.html          # Toolbar popup UI
+│   ├── popup.js            # Toolbar popup logic
 │   ├── storage-utils.js    # Storage utilities
 │   ├── timer-utils.js      # Timer calculation helpers
 │   └── icons/              # Extension icons (PNG)
@@ -63,6 +65,7 @@ system `zip` command (preinstalled on macOS and Linux).
 🎯 **Time-based site blocking** with customizable limits  
 📊 **Usage analytics** with rolling windows  
 🚀 **Smart URL input** with domain extraction  
+🧰 **Toolbar popup** for quick status, one-click blocking, and password-gated pause  
 🎨 **Modern UI** with dark mode support  
 🔒 **Privacy-first** with local-only data storage
 

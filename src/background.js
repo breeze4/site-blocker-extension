@@ -56,6 +56,9 @@ let activeTimerDomain = null;
 let handlingTimerForTab = false; // Prevent concurrent handleTimerForTab calls
 let pendingTimerTab = null;
 let browserHasFocus = true;
+// Cached pause state. When true, timers do not run and pages are not blocked.
+// Kept in sync via storage change events and refreshed on each tab handling pass.
+let blockingPaused = false;
 
 // Asynchronously retrieves the domain timers from storage. This function serves as a single point of access to the stored timers.
 async function getDomainTimers() {
@@ -67,6 +70,16 @@ async function getDomainTimers() {
     debugLog("Error retrieving domain timers:", error);
   }
   return null;
+}
+
+// Asynchronously retrieves the global pause flag from storage. Defaults to false on any error.
+async function getBlockingPaused() {
+  try {
+    const value = await getFromStorage("blockingPaused");
+    return value === true;
+  } catch (error) {
+    return false;
+  }
 }
 
 // Asynchronously retrieves the time tracking data from storage. This function serves as a single point of access to the stored time tracking.
@@ -367,6 +380,20 @@ async function handleTimerForTab(tab) {
       return;
     }
 
+    // If blocking is paused, do not run any timers or block navigation.
+    blockingPaused = await getBlockingPaused();
+    if (blockingPaused) {
+      pendingTimerTab = null;
+      if (activeTimerIntervalId) {
+        clearInterval(activeTimerIntervalId);
+        activeTimerIntervalId = null;
+        activeTimerTabId = null;
+        activeTimerDomain = null;
+      }
+      await endAllActiveSessions();
+      return;
+    }
+
     // End any active time tracking sessions before starting new one
     await endAllActiveSessions();
 
@@ -439,6 +466,12 @@ async function handleTimerForTab(tab) {
       );
       activeTimerIntervalId = setInterval(async () => {
         if (!browserHasFocus) {
+          await stopActiveTimerAndTracking();
+          return;
+        }
+
+        // If blocking was paused while a timer was running, stop immediately.
+        if (blockingPaused) {
           await stopActiveTimerAndTracking();
           return;
         }
@@ -636,6 +669,32 @@ chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
   }
 });
 
+// React to pause state changes written by the popup. Keeps the cached flag in
+// sync and either stops the active timer (paused) or re-evaluates the current
+// tab (resumed) without requiring an explicit message round-trip.
+chrome.storage.onChanged.addListener(async (changes, areaName) => {
+  if (areaName !== "local" || !changes.blockingPaused) {
+    return;
+  }
+
+  blockingPaused = changes.blockingPaused.newValue === true;
+
+  if (blockingPaused) {
+    await stopActiveTimerAndTracking();
+    return;
+  }
+
+  // Resumed: re-evaluate the current active tab so timers pick back up.
+  try {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tabs.length > 0) {
+      await handleTimerForTab(tabs[0]);
+    }
+  } catch (error) {
+    debugLog("Error re-evaluating tab after resume:", error);
+  }
+});
+
 // Handle onboarding for new users
 chrome.runtime.onInstalled.addListener(async (details) => {
   if (details.reason === "install") {
@@ -679,6 +738,23 @@ async function initialize() {
   if (!isTimeTrackingRecord(timeTracking)) {
     debugLog("Initializing time tracking storage");
     await setToStorage({ timeTracking: {} });
+  }
+
+  // Initialize the pause flag and load it into the cache.
+  const storedBlockingPaused = await getFromStorage("blockingPaused");
+  if (typeof storedBlockingPaused !== "boolean") {
+    await setToStorage({ blockingPaused: false });
+    blockingPaused = false;
+  } else {
+    blockingPaused = storedBlockingPaused;
+  }
+
+  // Initialize the pause password if missing. Required to pause from the popup.
+  const storedPausePassword = await getFromStorage("pausePassword");
+  const canGeneratePassword =
+    typeof TimerUtils !== "undefined" && typeof TimerUtils.generatePausePassword === "function";
+  if ((typeof storedPausePassword !== "string" || !storedPausePassword) && canGeneratePassword) {
+    await setToStorage({ pausePassword: TimerUtils.generatePausePassword() });
   }
 
   // Clean up old time tracking data on startup

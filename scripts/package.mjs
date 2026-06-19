@@ -26,6 +26,8 @@ const EXTENSION_FILES = [
   "content.js",
   "options.html",
   "options.js",
+  "popup.html",
+  "popup.js",
   "storage-utils.js",
   "timer-utils.js",
 ];

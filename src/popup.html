@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>Site Timer Blocker</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      width: 300px;
+      margin: 0;
+      padding: 14px;
+      color: #1a1a1a;
+      background-color: #ffffff;
+    }
+
+    h1 {
+      font-size: 15px;
+      margin: 0 0 12px 0;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    .section {
+      margin-bottom: 12px;
+    }
+
+    .domain-name {
+      font-size: 14px;
+      font-weight: bold;
+      word-break: break-all;
+    }
+
+    .time-left {
+      font-size: 13px;
+      margin-top: 4px;
+      color: #333;
+    }
+
+    .progress-track {
+      margin-top: 8px;
+      height: 8px;
+      width: 100%;
+      background-color: #eeeeee;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background-color: #4CAF50;
+      transition: width 0.3s ease;
+    }
+
+    .muted {
+      color: #777;
+      font-size: 13px;
+    }
+
+    button {
+      cursor: pointer;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 500;
+      transition: background-color 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .full-width {
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .primary-button {
+      background-color: #4CAF50;
+      color: white;
+    }
+    .primary-button:hover:not(:disabled) {
+      background-color: #45a049;
+    }
+
+    .secondary-button {
+      background-color: #2196F3;
+      color: white;
+    }
+    .secondary-button:hover {
+      background-color: #1976D2;
+    }
+
+    .warn-button {
+      background-color: #ff9800;
+      color: white;
+    }
+    .warn-button:hover {
+      background-color: #f57c00;
+    }
+
+    .divider {
+      border-top: 1px solid #e0e0e0;
+      margin: 12px 0;
+    }
+
+    .pause-input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px;
+      font-family: monospace;
+      font-size: 14px;
+      letter-spacing: 1px;
+      border: 2px solid #ddd;
+      border-radius: 4px;
+      margin-bottom: 8px;
+    }
+    .pause-input:focus {
+      border-color: #4CAF50;
+      outline: none;
+    }
+
+    .pause-hint {
+      font-size: 12px;
+      color: #777;
+      margin: 0 0 6px 0;
+    }
+
+    .pause-error {
+      color: #d32f2f;
+      font-size: 12px;
+      margin-top: 6px;
+      min-height: 14px;
+    }
+
+    .paused-notice {
+      background-color: #fff3e0;
+      border: 1px solid #ffcc80;
+      color: #e65100;
+      border-radius: 4px;
+      padding: 8px;
+      font-size: 13px;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      body {
+        background-color: #1a1a1a;
+        color: #e0e0e0;
+      }
+      h1, .divider {
+        border-color: #555;
+      }
+      .time-left {
+        color: #cfcfcf;
+      }
+      .progress-track {
+        background-color: #3d3d3d;
+      }
+      .pause-input {
+        background-color: #2d2d2d;
+        color: #e0e0e0;
+        border-color: #555;
+      }
+      .paused-notice {
+        background-color: #4e2a00;
+        border-color: #a35200;
+        color: #ffcc80;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Site Timer Blocker</h1>
+
+  <!-- Current site status -->
+  <div id="statusSection" class="section">
+    <div id="domainName" class="domain-name">&hellip;</div>
+
+    <div id="timerSection" class="hidden">
+      <div id="timeLeft" class="time-left"></div>
+      <div class="progress-track">
+        <div id="progressFill" class="progress-fill"></div>
+      </div>
+    </div>
+
+    <div id="notTrackedSection" class="hidden">
+      <div class="muted" style="margin: 4px 0 8px 0;">Not tracked yet.</div>
+      <button id="blockSiteButton" class="primary-button full-width">+ Block this site</button>
+    </div>
+
+    <div id="notTrackableSection" class="hidden">
+      <div class="muted">This page can't be tracked.</div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Pause controls -->
+  <div id="pauseSection" class="section">
+    <div id="pausedNotice" class="paused-notice hidden">Blocking is paused.</div>
+
+    <div id="pauseControls" class="hidden">
+      <p class="pause-hint">Enter the pause password (copy it from Options) to pause blocking.</p>
+      <input type="password" id="pausePasswordInput" class="pause-input" placeholder="pause password"
+        autocomplete="off" aria-label="Pause password">
+      <button id="pauseButton" class="warn-button full-width">Pause blocking</button>
+      <div id="pauseError" class="pause-error" role="alert"></div>
+    </div>
+
+    <div id="resumeControls" class="hidden">
+      <button id="resumeButton" class="primary-button full-width">Resume blocking</button>
+    </div>
+  </div>
+
+  <button id="optionsButton" class="secondary-button full-width">Options</button>
+
+  <script src="storage-utils.js"></script>
+  <script src="timer-utils.js"></script>
+  <script src="popup.js"></script>
+</body>
+
+</html>

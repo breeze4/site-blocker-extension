@@ -185,15 +185,6 @@ async function handleResume() {
   await renderPauseSection();
 }
 
-function openOptions() {
-  if (chrome.runtime.openOptionsPage) {
-    chrome.runtime.openOptionsPage();
-  } else {
-    chrome.tabs.create({ url: chrome.runtime.getURL("options.html") });
-  }
-  window.close();
-}
-
 async function init() {
   const tab = await getActiveTab();
   currentTrackable = tab ? isTrackableUrl(tab.url) : false;
@@ -202,7 +193,6 @@ async function init() {
   $("blockSiteButton")?.addEventListener("click", handleBlockSite);
   $("pauseButton")?.addEventListener("click", handlePause);
   $("resumeButton")?.addEventListener("click", handleResume);
-  $("optionsButton")?.addEventListener("click", openOptions);
   $("pausePasswordInput")?.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
       handlePause();

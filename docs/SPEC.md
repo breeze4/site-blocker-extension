@@ -41,7 +41,6 @@ When you want very limited access to sites, just enough to view random links you
 * Shows the current site's remaining time and a progress bar relative to its limit
 * One-click "Block this site" to start tracking the current domain with sensible defaults
 * Password-gated "Pause blocking" to temporarily disable enforcement across all sites
-* Quick link to open the full Options page
 * Graceful states for untracked sites and non-trackable pages (e.g. chrome:// pages)
 
 ## Technical Specifications
@@ -268,9 +267,10 @@ The Options page is a full tab and is heavyweight for routine checks ("how much 
 ### Controls
 
 - **Block this site**: shown when the active tab is a trackable site that is not yet tracked. Adds the current hostname to `domainTimers` using a default time limit and the current global reset interval (inherited from existing domains, falling back to 24h). After adding, the popup refreshes to show the live timer.
-- **Pause blocking (password-gated)**: when not paused, the popup shows a password input and a Pause button. The user must type the current pause password (which is only visible on the Options page). A correct entry sets `blockingPaused` to `true` and immediately rotates `pausePassword` to a new value. A wrong entry shows an error and does nothing.
+- **Pause blocking (password-gated)**: when not paused, the popup shows a password input and a Pause button. The user must type the current pause password (which is visible only on the Options page — see below). A correct entry sets `blockingPaused` to `true` and immediately rotates `pausePassword` to a new value. A wrong entry shows an error and does nothing.
 - **Resume blocking**: when paused, the popup shows a one-click Resume button (no password required — re-enabling enforcement is always frictionless).
-- **Options**: opens the full Options page.
+
+The popup deliberately does **not** link to the Options page. Retrieving the pause password requires opening Options manually from `chrome://extensions` (Details → Extension options). That extra navigation is the intended friction.
 
 ### Empty / Edge States
 
@@ -292,7 +292,7 @@ Pause stays on until the user clicks Resume. Time tracking is not accrued while 
 Pausing is deliberately hard so it is a conscious choice rather than an impulse:
 
 - A random `pausePassword` (a readable code such as `xxxx-xxxx-xxxx`) is generated on install and stored in `chrome.storage.local`. It is generated with `crypto.getRandomValues`.
-- The password is shown **only** on the Options page, with a Copy button and a Regenerate button. To pause, the user must open Options, copy the current code, return to the popup, and enter it.
+- The password is shown **only** on the Options page, with a Copy button and a Regenerate button. The popup does not link to Options; to read the code the user must open the Options page manually via `chrome://extensions` (Details → Extension options), copy it, return to the popup, and enter it.
 - On a successful pause the password **rotates** to a new value immediately, so every pause requires a fresh trip to the Options page — the code can never be memorized.
 - This is a self-control friction device, not a security boundary; the value is stored in plaintext in local storage.
 - The password generator is implemented as a pure function in `timer-utils.js` so it is unit-testable.

@@ -206,7 +206,9 @@
     <div id="pausedNotice" class="paused-notice hidden">Blocking is paused.</div>
 
     <div id="pauseControls" class="hidden">
-      <p class="pause-hint">Enter the pause password (copy it from Options) to pause blocking.</p>
+      <p class="pause-hint">Enter the pause password to pause blocking. Get it from the
+        extension's Options page, which you open from <strong>chrome://extensions</strong>
+        (Details &rarr; Extension options).</p>
       <input type="password" id="pausePasswordInput" class="pause-input" placeholder="pause password"
         autocomplete="off" aria-label="Pause password">
       <button id="pauseButton" class="warn-button full-width">Pause blocking</button>
@@ -217,8 +219,6 @@
       <button id="resumeButton" class="primary-button full-width">Resume blocking</button>
     </div>
   </div>
-
-  <button id="optionsButton" class="secondary-button full-width">Options</button>
 
   <script src="storage-utils.js"></script>
   <script src="timer-utils.js"></script>

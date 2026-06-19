@@ -73,3 +73,10 @@ Implemented as planned. Notable points:
 
 Lint: 0 errors (40 pre-existing-style warnings for empty `catch (error)` blocks, matching the
 codebase convention). Prettier: clean.
+
+### Follow-up: no Options link from the popup
+
+Per user feedback, the popup no longer links to the Options page. Retrieving the pause password
+now requires opening Options manually from `chrome://extensions` (Details → Extension options),
+adding navigation friction on top of the rotating code. Removed the popup's Options button and
+`openOptions` handler; the pause hint now points the user to `chrome://extensions`.

@@ -1,497 +1,162 @@
-# Site Blocker Extension
+# Site Timer Blocker
 
-A Chrome extension for time-based website blocking with comprehensive usage analytics.
+A Manifest V3 Chrome extension for time-based website blocking with usage analytics. The goal is just-enough access to distracting sites — long enough to check what you came for, not long enough to sink an hour — backed by data on where the time actually goes.
 
-## Overview
+This document describes the current behavior of the code. It is the source of truth; when a feature changes, update the relevant section here rather than appending notes.
 
-When you want very limited access to sites, just enough to view random links you come across, but not so much you can waste a lot of time. The extension provides both blocking functionality and detailed analytics to help users understand their browsing patterns.
+## Architecture
 
-## Current Features
+Plain JavaScript, no bundler and no build step. The files under `src/` are what ship.
 
-### Core Timer Functionality
-* Add/remove domains with customizable time limits (1min, 5min, 10min, 30min, 1hr)
-* Automatic timer countdown when visiting tracked domains
-* Page blocking when time limit is exceeded
-* Configurable reset intervals (1hr, 8hr, 24hr) with 24hr default
-* Real-time timer display updating every second in options page
+- `background.js` — service worker. The single source of truth for timer state: it watches tabs, runs the per-second countdown, blocks/redirects expired tabs, and accrues time-tracking sessions.
+- `content.js` — content script on every page. Blocks an already-expired page on load, and renders the read-only time-left overlay while a tracked domain has time remaining.
+- `popup.html` / `popup.js` — toolbar popup: at-a-glance status and quick actions for the active tab.
+- `options.html` / `options.js` — full-page settings and the analytics dashboard.
+- `storage-utils.js` — promisified `chrome.storage.local` get/set, shared by every surface.
+- `timer-utils.js` — pure helpers (decrement, reset logic, URL/domain parsing, time formatting, pause-password generation), unit-tested in isolation.
 
-### Time Tracking Analytics  
-* Real-time tracking of actual time spent on domains
-* Rolling window analytics: Last 24h, 7d, 30d, All Time
-* Session management with 2-minute idle detection
-* Individual and global reset tracking functionality
-* Daily data aggregation with automatic 30-day cleanup
+Single-writer principle: only the background service worker writes `timeLeft`. Every other surface (content overlay, popup, options) reads storage and reflects it, and stays live by listening to `chrome.storage.onChanged` or re-reading on an interval. This avoids races and keeps the countdown consistent everywhere.
 
-### User Interface
-* Full-tab options page with responsive table layout
-* Box-style radio button interface for all settings
-* Live-updating displays without disrupting user interactions
-* Inline editing with save functionality
-* Professional styling with consistent design system
+## Manifest (`manifest.json`)
 
-### Streamlined URL Input
-* Intelligent URL parsing with real-time domain extraction
-* Support for full URLs, partial URLs, and domain names
-* Visual feedback showing what domain will be tracked
-* Smart handling of subdomains and www prefixes
-* Domain-based table sorting for logical organization
+- Manifest version 3.
+- Permissions: `storage` (timers, tracking, settings), `activeTab` and `tabs` (read the active tab's URL, redirect on expiry).
+- Host permissions: `<all_urls>` so the content script runs everywhere and the worker can read tab URLs.
+- Background: `background.js` as a service worker.
+- Content scripts: `storage-utils.js` then `content.js`, matched on `<all_urls>`, injected at `document_idle`.
+- Action: `default_popup` is `popup.html` (the toolbar button).
+- Options UI: `options.html`, opened in a full tab (`open_in_tab: true`).
+- Content security policy for extension pages allows `'self'` scripts and inline styles only.
 
-### Toolbar Popup
-* Click the toolbar icon to open a compact popup for the current tab
-* Shows the current site's remaining time and a progress bar relative to its limit
-* One-click "Block this site" to start tracking the current domain with sensible defaults
-* Password-gated "Pause blocking" to temporarily disable enforcement across all sites
-* Graceful states for untracked sites and non-trackable pages (e.g. chrome:// pages)
+## Core behavior
 
-## Technical Specifications
+### Timers and blocking
 
-This is a Chrome extension designed to limit the time spent on specific websites.
+Per-domain timers live in `chrome.storage.local` under `domainTimers` (see Storage Data Models). A default set seeds common social sites on first install.
 
-### Manifest (`manifest.json`)
+- The worker handles a tab on activation, navigation completion, and window-focus changes (`onActivated`, `onUpdated`, `onFocusChanged`). Concurrent handling is guarded so only one timer runs at a time.
+- On each pass it opportunistically applies due resets, then, if the active tab's hostname is a tracked domain with positive time left, starts a `setInterval` that decrements `timeLeft` by one second.
+- The countdown only runs while the browser is focused and the active tab is still on that domain. Switching tabs/domains, losing window focus, or pausing stops it.
+- When `timeLeft` reaches zero, the worker stops the timer and redirects the active tab to `chrome://newtab`. Re-navigating to an expired domain redirects again.
+- `content.js` independently blocks an already-expired page on load by replacing the page body with an "Access Blocked" message (covers a page that was open before expiry, or reopened while out of time).
 
-*   **Manifest Version**: 3
-*   **Permissions**:
-    *   `storage`: To store the domain timers and settings.
-    *   `activeTab`: To interact with the currently active tab.
-    *   `tabs`: To get information about open tabs and update them.
-*   **Background Script**: `background.js` (Service Worker)
-*   **Content Scripts**:
-    *   `content.js`: Injected into all URLs (`<all_urls>`).
-*   **Options UI**:
-    *   `options.html`: A page for configuring the extension's settings.
-*   **Host Permissions**:
-    *   `<all_urls>`: Required for the content script to run on all pages and for the background script to potentially access tab URLs.
+### Reset intervals
 
-### Background Script (`background.js`)
+- Each domain carries a `resetInterval` in hours (1, 8, or 24; default 24). When that long has passed since `lastResetTimestamp`, `timeLeft` is restored to `originalTime` on the next tab pass.
+- The reset interval is a single global setting in Options: changing it rewrites `resetInterval` for every tracked domain.
+- Options also offers a manual "Reset Timers" button that restores every domain's `timeLeft` immediately.
 
-The background script is the core of the extension, responsible for managing timers and blocking sites.
+### Time-tracking analytics
 
-*   **Data Storage**:
-    *   Domain timers are stored in `chrome.storage.local` under the key `domainTimers`.
-    *   The data structure for each domain is an object: `{ originalTime: number, timeLeft: number, resetInterval: number, lastResetTimestamp: number, expiredMessageLogged: boolean }`.
-    *   A default set of timers is provided for common social media sites.
-*   **Timer Logic**:
-    *   The script initializes by loading the timers from storage.
-    *   It uses `chrome.tabs.onUpdated` to monitor for navigation to new pages.
-    *   When a user navigates to a domain that is being tracked, a timer is started using `setInterval`.
-    *   The timer decrements the `timeLeft` for the domain every 3 seconds.
-    *   If `timeLeft` for a domain reaches zero, any further navigation to that domain will result in the tab being redirected to the new tab page (`chrome://newtab`).
-*   **Timer Resets**:
-    *   Timers are automatically reset after a configurable interval (`resetInterval`, in hours) has passed since the last reset.
-    *   This check happens on every tab update.
+Actual time spent per domain is recorded separately from the countdown, under `timeTracking`.
 
-### Content Script (`content.js`)
+- A session begins (`currentSessionStart`) when the user lands on a tracked domain that still has time left. `lastActiveTimestamp` is refreshed every second while the timer ticks.
+- A session ends — its duration added to `dailyTotals[today]` and `allTimeTotal` — when the user navigates away, switches tabs, closes the tab, the window loses focus, blocking is paused, or the session goes idle.
+- Idle detection: a 30-second sweep ends any session whose `lastActiveTimestamp` is older than 2 minutes (the currently active, focused domain is exempt).
+- Daily aggregation keeps only per-day totals, not individual sessions. Entries older than 30 days are pruned on startup.
+- Rolling windows surfaced in Options — Last 24h / 7d / 30d — sum the relevant `dailyTotals` plus any current session; All Time uses `allTimeTotal` plus the current session.
+- Tracking is not accrued while blocking is paused, consistent with timers not running.
 
-The content script is responsible for displaying a message on pages where the time has run out.
+### Options page (`options.html` / `options.js`)
 
-*   **Functionality**:
-    *   On page load, it checks if the timer for the current domain has expired.
-    *   If the time is up, it replaces the entire `<body>` of the page with an "Access Blocked" message.
+The full-tab configuration and analytics surface.
 
-### Options Page (`options.html` and `options.js`)
+- Add a domain via a single input that parses full URLs, partial URLs, or bare domains, previews the resulting hostname in real time, validates it (rejects IPs, `localhost`, malformed input), and warns on duplicates. The full hostname is kept, so subdomains are tracked separately.
+- A table lists every tracked domain, sorted by base domain then subdomain, with columns: Domain, Time Allowed (inline time-limit radios + Save), Time Left, Last 24h, Last 7d, Last 30d, All Time, Last Reset, and Actions (Delete, Reset Tracking).
+- Time-limit radios offer 1/5/10/30/60 minutes; Save is enabled only when the selection differs from storage, and on save the worker is notified to restart the active timer.
+- Global controls: the reset-interval radios (apply to all domains), "Reset Timers", and "Reset All Tracking".
+- Pause password panel shows the current code with Copy and Regenerate.
+- The time columns refresh once per second without disturbing in-progress edits. A first-install onboarding banner shows when opened with `?onboarding=true`.
 
-The options page provides a user interface for managing the blocked sites.
+### Toolbar popup (`popup.html` / `popup.js`)
 
-*   **Features**:
-    *   Global reset interval setting that applies to all sites
-    *   Add or update a timer for a specific domain using box-style radio buttons
-    *   View a table of all configured domains with inline editing and save functionality
-    *   Manually reset all timers to their original values
-    *   Real-time timer updates without disrupting user interactions
-*   **Implementation**:
-    *   The page consists of three main sections: Global Settings, Add/Update form, and Tracked Sites table
-    *   Box-style radio buttons provide predefined time values with visual feedback
-    *   Table uses fixed column widths and percentage-based responsive layout
-    *   Save buttons are integrated inline with time selection radio buttons
-    *   JavaScript handles selective DOM updates to preserve user state during timer refreshes
+A compact browser-action popup — the lightweight everyday entry point — styled to match Options. It loads `storage-utils.js` and `timer-utils.js` like the other surfaces.
 
+- Shows the active tab's hostname, its remaining time, and a progress bar of `timeLeft` against `originalTime`, refreshed about once per second while open.
+- Block this site: shown for a trackable, not-yet-tracked page; adds the hostname to `domainTimers` with a default 5-minute limit and the reset interval inherited from existing domains (falling back to 24h).
+- Pause / Resume: password-gated pause and one-click resume (see Pause).
+- Edge states: a not-tracked-yet message with the Block button for trackable pages; an informational message for non-trackable pages (`chrome://`, `chrome-extension://`, `about:`, blank).
 
-# Feature: Time Tracking Analytics
+### Time-left overlay (`content.js`)
 
-Comprehensive time tracking system that records actual time spent on domains and displays analytics in multiple time buckets.
+A passive, on-page indicator so remaining time is visible while browsing without opening the popup.
 
-## Implementation Details
+- A compact pill fixed to the top-right of the viewport, showing the remaining time (`M:SS`, or `Hh MMm` over an hour) and a thin progress bar of `timeLeft / originalTime`. The bar shifts green → amber → red as time depletes.
+- Shown only for a tracked domain with positive finite `timeLeft`. Hidden when blocking is paused, the domain is untracked, or time has expired (the block/redirect logic handles that case).
+- Updated live via `chrome.storage.onChanged` (the worker is the single writer that decrements each second) — no polling.
+- Rendered inside a Shadow DOM host with a maximal z-index and `pointer-events: none`, so page styles can't affect it and it never intercepts clicks.
 
-### Data Structure
+### Pause and pause password
 
-#### Time Tracking Storage
-```javascript
-timeTracking: {
-  'domain.com': {
-    dailyTotals: {
-      '2025-08-02': 3600,    // seconds spent on this date
-      '2025-08-01': 1800,    // ISO date string as key
-      '2025-07-31': 2400,
-      // ... historical daily totals
-    },
-    allTimeTotal: 7800,      // total seconds since tracking started
-    trackingStartDate: '2025-07-01',  // when tracking began for this domain
-    lastResetDate: '2025-07-01',      // when tracking was last reset
-    currentSessionStart: null,         // timestamp when current session started
-    lastActiveTimestamp: 1691856000000 // last time domain was active (for cleanup)
+- `blockingPaused` is a global boolean. While true, the worker runs no timers and performs no redirects, the content script skips both the block message and the overlay, and any active timer and tracking session are stopped. Resuming re-evaluates the current tab. Pause stays on until the user resumes.
+- Pausing is gated by `pausePassword`: a readable random code (e.g. `xxxx-xxxx-xxxx`, generated with `crypto.getRandomValues` on install). The popup requires the current code to pause; a correct entry sets `blockingPaused` and immediately rotates the code to a new value. Resuming needs no password.
+- The code is shown only on the Options page (Copy / Regenerate). The generator is a pure function in `timer-utils.js` so it is unit-testable. See Non-Goals for the rationale and security posture.
+
+## Storage data models
+
+All state lives in `chrome.storage.local`. It is per-device and per-profile; it is not `chrome.storage.sync` and does not sync across devices. All reads are wrapped in try/catch with sensible defaults so the extension degrades gracefully.
+
+### `domainTimers`
+
+Per-domain timer configuration and current state.
+
+```jsonc
+{
+  "example.com": {
+    "originalTime": 300,            // seconds — the limit the user set
+    "timeLeft": 180,               // seconds — remaining this period
+    "resetInterval": 24,           // hours — how often it resets (1, 8, 24)
+    "lastResetTimestamp": 1691856000000, // ms — when it last reset
+    "expiredMessageLogged": false  // dedupes the post-expiry debug log
   }
 }
 ```
 
-### Time Tracking Logic
+Defaults seeded on first install (all `originalTime`/`timeLeft` 60s, `resetInterval` 24h): `www.reddit.com`, `old.reddit.com`, `twitter.com`, `x.com`, `instagram.com`, `www.instagram.com`.
 
-#### Session Management
-- **Session Start**: When user navigates to a tracked domain, record `currentSessionStart` timestamp
-- **Session Update**: Every 5 seconds while domain is active, update session time
-- **Session End**: When user navigates away or closes tab, calculate session duration and add to daily total
-- **Idle Detection**: If no activity for 2 minutes, end current session
+### `timeTracking`
 
-#### Daily Aggregation
-- Store time in daily buckets for efficient storage and calculation
-- Update `dailyTotals` for current date when sessions end
-- Update `allTimeTotal` with session duration
-- Clean up old daily data beyond 30 days automatically
+Per-domain analytics, separate from the countdown.
 
-#### Rolling Window Calculations
-- **Last 24h**: Sum time from current partial day + previous day(s) within 24 hour window
-- **Last 7d**: Sum daily totals for last 7 complete days + current partial day  
-- **Last 30d**: Sum daily totals for last 30 complete days + current partial day
-- **All Time**: Use stored `allTimeTotal` value
-
-### Storage Considerations
-
-#### Efficiency
-- Store only daily totals, not individual sessions
-- Automatic cleanup of data older than 30 days
-- Estimated storage per domain: ~1KB for 30 days of daily data
-
-#### Persistence
-- Data stored in `chrome.storage.local` alongside existing timer data
-- Survives extension reloads, browser restarts, and updates
-- No external dependencies or cloud storage needed
-
-### User Interface Changes
-
-#### Options Table Enhancements
-Add new columns to the tracked sites table:
-
-| Column | Content | Width |
-|--------|---------|-------|
-| Domain | Existing | 15% |
-| Time Allowed | Existing | 25% |
-| Time Left | Existing | 10% |
-| Last 24h | Time spent in last 24 hours | 10% |
-| Last 7d | Time spent in last 7 days | 10% |
-| Last 30d | Time spent in last 30 days | 10% |
-| All Time | Total time spent since tracking started | 10% |
-| Last Reset | Existing | 10% |
-| Actions | Delete + Reset Tracking buttons | 10% |
-
-#### New Functionality
-- **Reset Tracking Button**: Individual reset per domain
-- **Reset All Tracking Button**: Global reset for all domains
-- **Time Format**: Display as "Xh Ym" for hours/minutes, "Xm Ys" for minutes/seconds
-
-### Background Script Integration
-
-#### Timer Integration
-- Integrate time tracking with existing timer logic in `background.js`
-- When timer is active for a domain, also track actual time spent
-- Use existing tab monitoring events (`chrome.tabs.onUpdated`, `chrome.tabs.onActivated`)
-
-#### Session Management
-```javascript
-// Extend existing handleTimerForTab function
-async function handleTimerForTab(tab) {
-  // ... existing timer logic ...
-  
-  // Add time tracking
-  await trackTimeSession(domain, 'start');
-}
-
-// New time tracking functions
-async function trackTimeSession(domain, action) { /* ... */ }
-async function updateTimeTracking(domain, sessionDuration) { /* ... */ }
-async function calculateTimeSpent(domain, period) { /* ... */ }
-```
-
-### Reset Functionality
-
-#### Individual Domain Reset
-- Clear `dailyTotals` for the domain
-- Reset `allTimeTotal` to 0
-- Update `lastResetDate` to current date
-- Keep `trackingStartDate` for reference
-
-#### Global Reset
-- Reset tracking data for all domains
-- Preserve domain timer settings (originalTime, timeLeft, etc.)
-- Update all `lastResetDate` values
-
-### System Overview
-
-**Technical Features:**
-- Rolling window analytics with daily aggregation
-- Real-time session management with idle detection
-- Comprehensive data model with automatic cleanup
-- Professional user interface with live updates
-- Robust error handling and data persistence
-
-**User Benefits:**
-- **Behavioral Insights**: Users can see actual vs. intended usage patterns
-- **Data-Driven Decisions**: Analytics enable informed time limit adjustments
-- **Progress Tracking**: Historical data shows improvement over time  
-- **Flexible Reset**: Individual and global reset options provide fresh starts
-- **Seamless Integration**: Analytics layer doesn't interfere with core blocking functionality
-
-# Feature: Toolbar Popup
-
-A compact browser-action popup that gives at-a-glance status and quick controls for the active tab without opening the full Options page.
-
-## Purpose
-
-The Options page is a full tab and is heavyweight for routine checks ("how much time do I have left on this site?") and quick actions ("block this site I just landed on", "pause blocking for a bit"). The popup fills that gap as the primary lightweight entry point to the extension.
-
-## Manifest Integration
-
-- Adds an `action` entry to the manifest with `default_popup` pointing at `popup.html` and a `default_title`.
-- Reuses existing manifest `icons` for the toolbar button.
-- No new permissions are required. The popup uses already-granted `tabs`/`activeTab` to read the current tab URL and `storage` to read/write timer and pause state.
-
-## Popup UI (`popup.html` and `popup.js`)
-
-- `popup.html` is a small fixed-width document styled to match the Options design system (same color palette and button styles). Styles are inline (allowed by the existing extension-pages CSP); logic lives in an external `popup.js`.
-- `popup.js` loads shared helpers (`storage-utils.js`, `timer-utils.js`) the same way other entry points do.
-
-### Displayed State
-
-- Current domain (hostname of the active tab).
-- Time left for that domain and a progress bar showing `timeLeft` relative to `originalTime`.
-- The remaining time refreshes about once per second while the popup is open by re-reading storage (the background service worker is the single writer that decrements it).
-
-### Controls
-
-- **Block this site**: shown when the active tab is a trackable site that is not yet tracked. Adds the current hostname to `domainTimers` using a default time limit and the current global reset interval (inherited from existing domains, falling back to 24h). After adding, the popup refreshes to show the live timer.
-- **Pause blocking (password-gated)**: when not paused, the popup shows a password input and a Pause button. The user must type the current pause password (which is visible only on the Options page — see below). A correct entry sets `blockingPaused` to `true` and immediately rotates `pausePassword` to a new value. A wrong entry shows an error and does nothing.
-- **Resume blocking**: when paused, the popup shows a one-click Resume button (no password required — re-enabling enforcement is always frictionless).
-
-The popup deliberately does **not** link to the Options page. Retrieving the pause password requires opening Options manually from `chrome://extensions` (Details → Extension options). That extra navigation is the intended friction.
-
-### Empty / Edge States
-
-- Untracked-but-trackable site: shows "not tracked yet" with the Block button available.
-- Non-trackable page (e.g. `chrome://`, `chrome-extension://`, `about:`, blank): shows an informational message; only the Pause toggle and Options link remain meaningful.
-
-## Pause Behavior
-
-`blockingPaused` is a global boolean. When `true`:
-
-- The background service worker does not start or decrement timers and does not redirect expired tabs.
-- The content script does not replace page content with the blocked message.
-- Pausing stops any active timer and ends active tracking sessions; resuming re-evaluates the current active tab.
-
-Pause stays on until the user clicks Resume. Time tracking is not accrued while paused, consistent with timers not running.
-
-## Pause Password (friction, not security)
-
-Pausing is deliberately hard so it is a conscious choice rather than an impulse:
-
-- A random `pausePassword` (a readable code such as `xxxx-xxxx-xxxx`) is generated on install and stored in `chrome.storage.local`. It is generated with `crypto.getRandomValues`.
-- The password is shown **only** on the Options page, with a Copy button and a Regenerate button. The popup does not link to Options; to read the code the user must open the Options page manually via `chrome://extensions` (Details → Extension options), copy it, return to the popup, and enter it.
-- On a successful pause the password **rotates** to a new value immediately, so every pause requires a fresh trip to the Options page — the code can never be memorized.
-- This is a self-control friction device, not a security boundary; the value is stored in plaintext in local storage.
-- The password generator is implemented as a pure function in `timer-utils.js` so it is unit-testable.
-
-# Feature: Time-Left Overlay
-
-A lightweight, always-visible on-page indicator showing how much time remains on the current tracked site, so the remaining time is visible while browsing without opening the popup.
-
-## Purpose
-
-Remaining time is currently only visible in the Options page and the toolbar popup, both of which require a deliberate click. While actively browsing a tracked site there is no ambient signal of how much time is left. A small overlay rendered directly on the page closes that gap.
-
-## Scope
-
-- Display only. No controls, buttons, or links — it shows the remaining time and a proportional progress indicator, nothing else.
-- Rendered by the existing content script (`content.js`), which already runs on `<all_urls>`. No new permissions and no manifest changes are required.
-
-## Behavior
-
-- Shown only when the current page's hostname is a tracked domain in `domainTimers` and its `timeLeft` is a positive finite number.
-- Hidden when blocking is paused (`blockingPaused === true`), the domain is not tracked, or the timer has expired (in the expired case the page is blocked/redirected by existing logic instead).
-- Updates live as the background service worker decrements `timeLeft`. The content script listens to `chrome.storage.onChanged` (local area) and re-renders on changes to `domainTimers` or `blockingPaused`. No polling interval is used; the background is the single writer.
-
-## Appearance
-
-- A compact pill fixed to the top-right corner of the viewport.
-- Shows the remaining time in a compact format (`M:SS`, or `Hh MMm` when over an hour) plus a thin progress bar representing `timeLeft / originalTime`.
-- The progress bar color reflects urgency (green when ample, amber as it depletes, red when nearly out).
-- Rendered inside a Shadow DOM host so page styles cannot affect it and it cannot affect the page. The host uses a maximal z-index and `pointer-events: none`, so it never intercepts clicks or interferes with the page.
-
-## Non-Goals
-
-- No configuration UI for position, visibility, or styling in this iteration.
-- Does not change blocking, redirect, or tracking logic; it is a passive read-only view of existing state.
-
-# Chrome Storage Data Models
-
-This section documents all data structures stored in `chrome.storage.local` by the extension.
-
-## Storage Buckets Overview
-
-The extension uses two primary storage buckets:
-- **`domainTimers`**: Core timer functionality and configurations
-- **`timeTracking`**: Analytics data for actual time spent on domains
-
-## 1. domainTimers
-
-Primary storage for timer configurations and current state. This bucket contains the core functionality of the site blocker.
-
-### Data Structure
-```javascript
-domainTimers: {
-  'example.com': {
-    originalTime: 300,              // number (seconds) - original time limit set by user
-    timeLeft: 180,                  // number (seconds) - remaining time for current period
-    resetInterval: 24,              // number (hours) - how often timer resets (1, 8, 24)
-    lastResetTimestamp: 1691856000000,  // number (milliseconds) - when timer was last reset
-    expiredMessageLogged: false     // boolean - prevents repeated console logging after expiration
-  },
-  'another-site.com': {
-    originalTime: 600,
-    timeLeft: 450,
-    resetInterval: 24,
-    lastResetTimestamp: 1691856000000,
-    expiredMessageLogged: false
+```jsonc
+{
+  "example.com": {
+    "dailyTotals": { "2025-08-02": 3600 }, // ISO date -> seconds that day
+    "allTimeTotal": 7800,          // seconds since tracking started/last reset
+    "trackingStartDate": "2025-07-01", // ISO date tracking began
+    "lastResetDate": "2025-07-01", // ISO date of last manual tracking reset
+    "currentSessionStart": null,   // ms timestamp, or null when idle
+    "lastActiveTimestamp": 1691856000000 // ms — last activity, for idle sweep
   }
-  // ... additional domains
 }
 ```
 
-### Field Descriptions
-- **`originalTime`**: The time limit (in seconds) that the user set for this domain. When timers reset, `timeLeft` is restored to this value.
-- **`timeLeft`**: Current remaining time (in seconds) for this domain in the current reset period. Decrements while user is active on the domain.
-- **`resetInterval`**: How often (in hours) the timer resets. Corresponds to the global reset interval setting.
-- **`lastResetTimestamp`**: Unix timestamp (milliseconds) of when this domain's timer was last reset. Used to determine when next reset should occur.
-- **`expiredMessageLogged`**: Boolean flag to prevent repeated console logging after timer expiration. Set to `true` after first expiration message, reset to `false` when timer resets.
+- `dailyTotals` powers the rolling windows; pruned past 30 days.
+- A manual Reset Tracking clears `dailyTotals` and `allTimeTotal` and stamps `lastResetDate`, preserving `trackingStartDate`. Reset All Tracking does this for every domain. Neither touches timer settings.
 
-### Default Domains
-The extension initializes with these default domains on first install:
-- `www.reddit.com`, `old.reddit.com` 
-- `twitter.com`, `x.com`
-- `instagram.com`, `www.instagram.com`
+### `blockingPaused`
 
-All default domains have:
-- `originalTime: 60` (1 minute)
-- `timeLeft: 60` (1 minute) 
-- `resetInterval: 24` (24 hours)
-- `lastResetTimestamp: Date.now()` (current time)
-- `expiredMessageLogged: false` (logging enabled)
+Global boolean (default `false`). When true, no timers run and nothing is blocked. Initialized on install, set from the popup only after a correct password, cleared by Resume.
 
-## 2. timeTracking
+### `pausePassword`
 
-Analytics storage for tracking actual time spent on domains over different time periods. This data powers the time tracking analytics feature.
+String — the current code required to pause from the popup (e.g. `"7f3k-92qd-x8mn"`). Generated on install, rotated on every successful pause and on manual Regenerate.
 
-### Data Structure
-```javascript
-timeTracking: {
-  'example.com': {
-    dailyTotals: {
-      '2025-08-02': 3600,           // number (seconds) - time spent on this date
-      '2025-08-01': 1800,           // string key (ISO date) -> number value (seconds)
-      '2025-07-31': 2400,
-      // ... additional dates (automatically cleaned up after 30 days)
-    },
-    allTimeTotal: 7800,             // number (seconds) - total time since tracking started
-    trackingStartDate: '2025-07-01', // string (ISO date) - when tracking began for this domain
-    lastResetDate: '2025-07-01',    // string (ISO date) - when tracking was last manually reset
-    currentSessionStart: null,       // number|null (timestamp) - start time of active session
-    lastActiveTimestamp: 1691856000000 // number (timestamp) - last activity for idle cleanup
-  }
-  // ... additional domains
-}
-```
+## Non-Goals, Removed Features & Intentional Frictions
 
-### Field Descriptions
-- **`dailyTotals`**: Object mapping ISO date strings to seconds spent on that date. Used for rolling window calculations (24h, 7d, 30d).
-- **`allTimeTotal`**: Total seconds spent on this domain since tracking started or last reset. Used for "All Time" column.
-- **`trackingStartDate`**: ISO date string of when time tracking began for this domain. Set when domain is first visited.
-- **`lastResetDate`**: ISO date string of when tracking data was last manually reset via "Reset Tracking" button.
-- **`currentSessionStart`**: Unix timestamp (milliseconds) when current browsing session started, or `null` if no active session.
-- **`lastActiveTimestamp`**: Unix timestamp (milliseconds) of last activity. Used for idle detection (sessions end after 2 minutes of inactivity).
+A single home for what the extension deliberately does not do, what was removed and why, and the design choices that are friction by intent — so these don't get re-litigated or scattered through the feature sections.
 
-### Session Management
-- **Session Start**: Set when user navigates to tracked domain
-- **Session End**: Triggered by navigation away, tab close, or idle timeout (2 minutes)
-- **Daily Aggregation**: Session durations are added to `dailyTotals[currentDate]` and `allTimeTotal`
-- **Data Cleanup**: Daily entries older than 30 days are automatically removed
+Removed
+- Options link in the popup — removed so the pause password can only be retrieved by deliberately opening Options from `chrome://extensions` (Details → Extension options). This was a deliberate hardening of the pause friction.
 
-### Rolling Window Calculations
-- **Last 24h**: Sum of current partial day + previous days within 24-hour window
-- **Last 7d**: Sum of daily totals for last 7 days + current active session time
-- **Last 30d**: Sum of daily totals for last 30 days + current active session time  
-- **All Time**: Direct value from `allTimeTotal` + current active session time
+Intentional frictions
+- The popup never links to Options. Reading the pause password requires that manual trip every time.
+- Pausing requires the current password and rotates it on use, so the code can never be memorized and each pause is a conscious act. Resuming is always frictionless (one click, no password) — re-enabling enforcement should never be hard.
 
-## 3. blockingPaused
+Security posture
+- The pause password is a self-control device, not a security boundary. It is stored in plaintext in local storage; anyone with access to the profile or devtools can bypass it. That is acceptable for the intended use.
 
-Global flag controlling whether blocking enforcement is active. Powers the popup's "Pause all blocking" toggle.
-
-### Data Structure
-```javascript
-blockingPaused: false  // boolean - when true, timers do not run and pages are not blocked
-```
-
-### Field Description
-- **`blockingPaused`**: When `true`, the background service worker suspends timer countdown and tab redirects, and the content script skips the blocked-page message. Defaults to `false` and is initialized on first install. Set to `true` from the toolbar popup only after a correct password entry; cleared (Resume) with one click.
-
-## 4. pausePassword
-
-Random code that gates pausing from the popup. See "Pause Password" under the Toolbar Popup feature.
-
-### Data Structure
-```javascript
-pausePassword: "7f3k-92qd-x8mn"  // string - current code required to pause; rotates after each pause
-```
-
-### Field Description
-- **`pausePassword`**: A readable random code generated with `crypto.getRandomValues` on install. Displayed only on the Options page (with Copy/Regenerate). Required in the popup to set `blockingPaused` to `true`, and rotated to a new value on every successful pause and on manual Regenerate.
-
-## Storage Management
-
-### Initialization
-- Extension initializes `domainTimers` with default domains on first install
-- `timeTracking` is initialized as empty object `{}`
-- Time tracking data is created per-domain when first visited
-
-### Data Persistence
-- All data persists across browser restarts and extension reloads
-- No cloud storage or external dependencies
-- Uses Chrome's local storage with automatic sync across devices
-
-### Storage Efficiency
-- Daily aggregation minimizes storage usage vs. storing individual sessions
-- Automatic cleanup of data older than 30 days
-- Estimated storage: ~1KB per domain for 30 days of tracking data
-
-### Error Handling
-- All storage operations wrapped in try/catch with fallback defaults
-- Missing data returns sensible defaults (0 for time values, empty objects)
-- Extension degrades gracefully if storage operations fail
-
----
-
-# Technical Architecture
-
-## Project Structure
-
-The extension uses a clean, modular architecture:
-
-### Core Files
-- **`background.js`**: Service worker handling timer logic and time tracking
-- **`options.js`**: Options page logic with async/await patterns
-- **`content.js`**: Content script for blocked page display
-- **`storage-utils.js`**: Shared storage utilities
-- **`options.html`**: Modern, responsive options page UI
-
-### Development Standards
-- **Async/Await**: All storage operations use modern async patterns
-- **Error Handling**: Comprehensive try/catch blocks with graceful fallbacks
-- **Modularity**: Shared utilities and clear separation of concerns
-- **Documentation**: Complete data model and API documentation
-- **Testable Code**: Atomic functions suitable for unit testing
-
+Non-goals
+- The time-left overlay is display-only: no controls, and no configuration UI for its position, size, or visibility. It never changes blocking, redirect, or tracking logic.
+- No cloud sync, accounts, or external services; storage is local-only (not `chrome.storage.sync`). The extension has no runtime npm dependencies.
+- Subdomains are tracked as distinct domains; there is no automatic subdomain grouping or base-domain rollup of limits.

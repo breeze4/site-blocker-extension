@@ -342,7 +342,17 @@ async function endAllActiveSessions() {
   } catch (error) {}
 }
 
-async function stopActiveTimerAndTracking() {
+async function stopActiveTimerAndTracking(reason = "unspecified") {
+  debugLog(
+    "Stopping active timer and tracking. reason:",
+    reason,
+    "domain:",
+    activeTimerDomain,
+    "browserHasFocus:",
+    browserHasFocus,
+    "blockingPaused:",
+    blockingPaused
+  );
   if (activeTimerIntervalId) {
     clearInterval(activeTimerIntervalId);
     activeTimerIntervalId = null;
@@ -368,7 +378,7 @@ async function handleTimerForTab(tab) {
 
   // Prevent concurrent execution
   if (handlingTimerForTab) {
-    console.log("[TIMER DEBUG] Already handling timer for tab, skipping concurrent call");
+    debugLog("Skipping: already handling timer for another tab. Queued:", tab?.url);
     pendingTimerTab = tab;
     return;
   }
@@ -376,6 +386,7 @@ async function handleTimerForTab(tab) {
 
   try {
     if (!browserHasFocus) {
+      debugLog("Bailing out of handleTimerForTab: browser does not have focus");
       pendingTimerTab = null;
       return;
     }
@@ -383,6 +394,7 @@ async function handleTimerForTab(tab) {
     // If blocking is paused, do not run any timers or block navigation.
     blockingPaused = await getBlockingPaused();
     if (blockingPaused) {
+      debugLog("Bailing out of handleTimerForTab: blocking is paused");
       pendingTimerTab = null;
       if (activeTimerIntervalId) {
         clearInterval(activeTimerIntervalId);
@@ -445,6 +457,7 @@ async function handleTimerForTab(tab) {
     await initializeDomainTimeTracking(domain);
 
     if (!browserHasFocus) {
+      debugLog("Bailing after tracking init: browser lost focus while handling", domain);
       pendingTimerTab = null;
       return;
     }
@@ -466,13 +479,13 @@ async function handleTimerForTab(tab) {
       );
       activeTimerIntervalId = setInterval(async () => {
         if (!browserHasFocus) {
-          await stopActiveTimerAndTracking();
+          await stopActiveTimerAndTracking("tick: browser lost focus");
           return;
         }
 
         // If blocking was paused while a timer was running, stop immediately.
         if (blockingPaused) {
-          await stopActiveTimerAndTracking();
+          await stopActiveTimerAndTracking("tick: blocking paused");
           return;
         }
 
@@ -480,13 +493,13 @@ async function handleTimerForTab(tab) {
         try {
           const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
           if (!browserHasFocus) {
-            await stopActiveTimerAndTracking();
+            await stopActiveTimerAndTracking("tick: browser lost focus during tab query");
             return;
           }
 
           if (tabs.length === 0 || !tabs[0].url) {
             // No active tab or no URL, stop the timer
-            await stopActiveTimerAndTracking();
+            await stopActiveTimerAndTracking("tick: no active tab or url");
             return;
           }
 
@@ -495,24 +508,26 @@ async function handleTimerForTab(tab) {
 
           // If we've switched to a different domain, stop this timer
           if (activeDomain !== domain) {
-            await stopActiveTimerAndTracking();
+            await stopActiveTimerAndTracking(
+              `tick: active tab moved to ${activeDomain}, expected ${domain}`
+            );
             return;
           }
         } catch (error) {
           // Error checking active tab, stop the timer
-          await stopActiveTimerAndTracking();
+          await stopActiveTimerAndTracking("tick: error querying active tab");
           return;
         }
 
         // Re-read timers from storage to get any updates from options page
         const currentTimers = await getDomainTimers();
         if (!browserHasFocus) {
-          await stopActiveTimerAndTracking();
+          await stopActiveTimerAndTracking("tick: browser lost focus after re-read");
           return;
         }
 
         if (!currentTimers || !currentTimers[domain]) {
-          await stopActiveTimerAndTracking();
+          await stopActiveTimerAndTracking(`tick: timer for ${domain} no longer in storage`);
           return;
         }
 
@@ -585,8 +600,26 @@ async function handleTimerForTab(tab) {
   }
 }
 
+// Re-derive whether the browser is focused from the source of truth (the
+// window's actual `focused` state) rather than the cached `browserHasFocus`
+// flag, which only recovers on `onFocusChanged`. Switching tabs within a window
+// fires `onActivated` but NOT `onFocusChanged`, so without this a stale `false`
+// (set when focus bounced to another app/window) would wedge the timer forever.
+// Fails open: if the window can't be read, assume focus so we never get stuck.
+async function isWindowFocused(windowId) {
+  try {
+    const win = await chrome.windows.get(windowId);
+    return win.focused === true;
+  } catch (error) {
+    return true;
+  }
+}
+
 // Listen for when the user switches to a different tab.
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
+  // Activating a tab is direct interaction with its window — refresh the focus
+  // flag so a stale `false` can't stop the timer from restarting.
+  browserHasFocus = await isWindowFocused(activeInfo.windowId);
   chrome.tabs.get(activeInfo.tabId, async (tab) => {
     if (chrome.runtime.lastError) {
       return;
@@ -599,6 +632,7 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   // We only care about the active tab and when it's finished loading.
   if (tab.active && changeInfo.status === "complete") {
+    browserHasFocus = await isWindowFocused(tab.windowId);
     await handleTimerForTab(tab);
   }
 });

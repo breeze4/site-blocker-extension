@@ -297,6 +297,37 @@ Pausing is deliberately hard so it is a conscious choice rather than an impulse:
 - This is a self-control friction device, not a security boundary; the value is stored in plaintext in local storage.
 - The password generator is implemented as a pure function in `timer-utils.js` so it is unit-testable.
 
+# Feature: Time-Left Overlay
+
+A lightweight, always-visible on-page indicator showing how much time remains on the current tracked site, so the remaining time is visible while browsing without opening the popup.
+
+## Purpose
+
+Remaining time is currently only visible in the Options page and the toolbar popup, both of which require a deliberate click. While actively browsing a tracked site there is no ambient signal of how much time is left. A small overlay rendered directly on the page closes that gap.
+
+## Scope
+
+- Display only. No controls, buttons, or links — it shows the remaining time and a proportional progress indicator, nothing else.
+- Rendered by the existing content script (`content.js`), which already runs on `<all_urls>`. No new permissions and no manifest changes are required.
+
+## Behavior
+
+- Shown only when the current page's hostname is a tracked domain in `domainTimers` and its `timeLeft` is a positive finite number.
+- Hidden when blocking is paused (`blockingPaused === true`), the domain is not tracked, or the timer has expired (in the expired case the page is blocked/redirected by existing logic instead).
+- Updates live as the background service worker decrements `timeLeft`. The content script listens to `chrome.storage.onChanged` (local area) and re-renders on changes to `domainTimers` or `blockingPaused`. No polling interval is used; the background is the single writer.
+
+## Appearance
+
+- A compact pill fixed to the top-right corner of the viewport.
+- Shows the remaining time in a compact format (`M:SS`, or `Hh MMm` when over an hour) plus a thin progress bar representing `timeLeft / originalTime`.
+- The progress bar color reflects urgency (green when ample, amber as it depletes, red when nearly out).
+- Rendered inside a Shadow DOM host so page styles cannot affect it and it cannot affect the page. The host uses a maximal z-index and `pointer-events: none`, so it never intercepts clicks or interferes with the page.
+
+## Non-Goals
+
+- No configuration UI for position, visibility, or styling in this iteration.
+- Does not change blocking, redirect, or tracking logic; it is a passive read-only view of existing state.
+
 # Chrome Storage Data Models
 
 This section documents all data structures stored in `chrome.storage.local` by the extension.

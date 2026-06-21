@@ -1,0 +1,8 @@
+# Build-script approvals. pnpm (v11) reads these from here.
+#
+# unrs-resolver is a transitive native dependency of jest's resolver. Its
+# postinstall native build is intentionally NOT run (false) — jest works without
+# it. Recording the decision here lets `pnpm install` and the pre-run dependency
+# check used by `pnpm test`/`pnpm lint` pass without prompting.
+allowBuilds:
+  unrs-resolver: false

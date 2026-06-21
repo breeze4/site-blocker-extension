@@ -1013,4 +1013,49 @@ describe("background service worker session accounting", () => {
     expect(decrementWrites).toHaveLength(0);
     expect(storage.domainTimers["example.com"].timeLeft).toBe(300);
   });
+
+  test("switching tabs restarts the timer even after focus was lost to another window", async () => {
+    const storage = {
+      domainTimers: {
+        "example.com": {
+          originalTime: 300,
+          timeLeft: 300,
+          resetInterval: 24,
+          lastResetTimestamp: Date.now(),
+          expiredMessageLogged: false,
+        },
+      },
+      timeTracking: {},
+    };
+
+    const { chrome, intervals, listeners } = loadBackgroundWithStorage(storage);
+    for (let i = 0; i < 10; i++) {
+      await Promise.resolve();
+    }
+
+    // Focus bounces to another app/window: the cached focus flag latches false.
+    await listeners.focusChanged(chrome.windows.WINDOW_ID_NONE);
+
+    // The user returns by switching tabs within the (now focused) window. That
+    // fires onActivated but NOT onFocusChanged, so the flag must be re-derived
+    // from the window's real focus state instead of staying stuck on false.
+    chrome.windows.get = jest.fn(async () => ({ focused: true }));
+    chrome.tabs.get = jest.fn((tabId, callback) =>
+      callback({ id: tabId, active: true, url: "https://example.com/feed", windowId: 1 })
+    );
+    chrome.tabs.query.mockResolvedValue([
+      { id: 1, active: true, url: "https://example.com/feed" },
+    ]);
+
+    await listeners.activated({ tabId: 1, windowId: 1 });
+    // onActivated fires handleTimerForTab inside a non-awaited tabs.get callback,
+    // so drain microtasks until the countdown interval is created (or give up).
+    for (let i = 0; i < 100 && intervals.filter((iv) => iv.delay === 1000).length === 0; i++) {
+      await Promise.resolve();
+    }
+
+    // The per-second countdown must start again; before the fix it never did.
+    const countdownIntervals = intervals.filter((iv) => iv.delay === 1000);
+    expect(countdownIntervals).toHaveLength(1);
+  });
 });

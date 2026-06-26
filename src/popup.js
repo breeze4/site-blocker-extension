@@ -2,7 +2,7 @@
 // Loaded after storage-utils.js and timer-utils.js, which expose StorageUtils and TimerUtils.
 
 const DEFAULT_BLOCK_MINUTES = 5;
-const DEFAULT_RESET_INTERVAL_HOURS = 24;
+const DEFAULT_RECHARGE_RATE = 30; // seconds restored per hour away
 
 let currentDomain = null;
 let currentTrackable = false;
@@ -50,17 +50,17 @@ async function getActiveTab() {
   }
 }
 
-// Inherit the reset interval used by existing domains (it's a global setting),
+// Inherit the recharge rate used by existing domains (it's a global setting),
 // falling back to the default when no domains are configured yet.
-function getInheritedResetInterval(domainTimers) {
+function getInheritedRechargeRate(domainTimers) {
   const domains = Object.keys(domainTimers || {});
   for (const domain of domains) {
-    const interval = domainTimers[domain]?.resetInterval;
-    if (Number.isFinite(interval) && interval > 0) {
-      return interval;
+    const rate = domainTimers[domain]?.rechargeRate;
+    if (Number.isFinite(rate) && rate > 0) {
+      return rate;
     }
   }
-  return DEFAULT_RESET_INTERVAL_HOURS;
+  return DEFAULT_RECHARGE_RATE;
 }
 
 function getProgressPercent(timeLeft, originalTime) {
@@ -141,14 +141,14 @@ async function handleBlockSite() {
     return;
   }
 
-  const resetInterval = getInheritedResetInterval(domainTimers);
+  const rechargeRate = getInheritedRechargeRate(domainTimers);
   const originalTimeSeconds = DEFAULT_BLOCK_MINUTES * 60;
 
   domainTimers[currentDomain] = {
     originalTime: originalTimeSeconds,
     timeLeft: originalTimeSeconds,
-    resetInterval,
-    lastResetTimestamp: Date.now(),
+    rechargeRate,
+    lastVisitTimestamp: Date.now(),
     expiredMessageLogged: false,
   };
 
@@ -218,9 +218,9 @@ if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     isTrackableUrl,
     getDomainFromUrl,
-    getInheritedResetInterval,
+    getInheritedRechargeRate,
     getProgressPercent,
     DEFAULT_BLOCK_MINUTES,
-    DEFAULT_RESET_INTERVAL_HOURS,
+    DEFAULT_RECHARGE_RATE,
   };
 }

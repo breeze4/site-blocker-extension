@@ -6,7 +6,9 @@
 const {
   shouldResetTimer,
   applyTimerSettingsChange,
-  checkAndResetIfIntervalPassed,
+  normalizeRechargeRate,
+  applyRecharge,
+  estimateSecondsUntilFull,
   decrementTimer,
   parseURL,
   validateDomain,
@@ -44,20 +46,20 @@ describe('Timer Logic', () => {
       mockTimer = {
         originalTime: 600, // 10 minutes
         timeLeft: 450, // 7.5 minutes left
-        resetInterval: 24,
-        lastResetTimestamp: Date.now() - 1000,
+        rechargeRate: 30,
+        lastVisitTimestamp: Date.now() - 1000,
         expiredMessageLogged: false
       };
     });
 
     test('should reset timer when changing to lower time', () => {
-      const { timerData, wasReset } = applyTimerSettingsChange(mockTimer, 300, 24);
+      const { timerData, wasReset } = applyTimerSettingsChange(mockTimer, 300, 30);
       
       expect(wasReset).toBe(true);
       expect(timerData.originalTime).toBe(300);
       expect(timerData.timeLeft).toBe(300);
       expect(timerData.expiredMessageLogged).toBe(false);
-      expect(timerData.lastResetTimestamp).toBeGreaterThan(mockTimer.lastResetTimestamp);
+      expect(timerData.lastVisitTimestamp).toBeGreaterThan(mockTimer.lastVisitTimestamp);
     });
 
     // Bug fix: Timer with 9m left, change from 10m to 5m setting → should reset to 5m
@@ -65,12 +67,12 @@ describe('Timer Logic', () => {
       const timer = {
         originalTime: 600, // 10 minutes setting
         timeLeft: 540,     // 9 minutes remaining  
-        resetInterval: 24,
-        lastResetTimestamp: Date.now() - (60 * 1000), // 1 minute ago
+        rechargeRate: 30,
+        lastVisitTimestamp: Date.now() - (60 * 1000), // 1 minute ago
         expiredMessageLogged: false
       };
 
-      const { timerData, wasReset } = applyTimerSettingsChange(timer, 300, 24); // Change to 5m
+      const { timerData, wasReset } = applyTimerSettingsChange(timer, 300, 30); // Change to 5m
 
       expect(wasReset).toBe(true);
       expect(timerData.timeLeft).toBe(300); // Should be 5m, not 9m
@@ -82,12 +84,12 @@ describe('Timer Logic', () => {
       const timer = {
         originalTime: 300, // 5 minutes setting
         timeLeft: 180,     // 3 minutes remaining
-        resetInterval: 24,
-        lastResetTimestamp: Date.now() - (120 * 1000), // 2 minutes ago  
+        rechargeRate: 30,
+        lastVisitTimestamp: Date.now() - (120 * 1000), // 2 minutes ago  
         expiredMessageLogged: false
       };
 
-      const { timerData, wasReset } = applyTimerSettingsChange(timer, 60, 24); // Change to 1m
+      const { timerData, wasReset } = applyTimerSettingsChange(timer, 60, 30); // Change to 1m
 
       expect(wasReset).toBe(true);
       expect(timerData.timeLeft).toBe(60); // Should be 1m, not 3m
@@ -97,7 +99,7 @@ describe('Timer Logic', () => {
       mockTimer.originalTime = 300;
       mockTimer.timeLeft = 300;
       
-      const { timerData, wasReset } = applyTimerSettingsChange(mockTimer, 600, 24);
+      const { timerData, wasReset } = applyTimerSettingsChange(mockTimer, 600, 30);
       
       expect(wasReset).toBe(true);
       expect(timerData.originalTime).toBe(600);
@@ -107,19 +109,19 @@ describe('Timer Logic', () => {
     test('should not reset when time unchanged and timeLeft valid', () => {
       mockTimer.timeLeft = 300; // Valid time left
       
-      const { timerData, wasReset } = applyTimerSettingsChange(mockTimer, 600, 24);
+      const { timerData, wasReset } = applyTimerSettingsChange(mockTimer, 600, 30);
       
       expect(wasReset).toBe(false);
       expect(timerData.originalTime).toBe(600);
       expect(timerData.timeLeft).toBe(300); // Unchanged
-      expect(timerData.lastResetTimestamp).toBe(mockTimer.lastResetTimestamp);
+      expect(timerData.lastVisitTimestamp).toBe(mockTimer.lastVisitTimestamp);
     });
 
     test('should reset expired timer', () => {
       mockTimer.timeLeft = 0;
       mockTimer.expiredMessageLogged = true;
       
-      const { timerData, wasReset } = applyTimerSettingsChange(mockTimer, 300, 24);
+      const { timerData, wasReset } = applyTimerSettingsChange(mockTimer, 300, 30);
       
       expect(wasReset).toBe(true);
       expect(timerData.timeLeft).toBe(300);
@@ -131,13 +133,13 @@ describe('Timer Logic', () => {
       const corruptedTimer = {
         originalTime: 300, // 5 minutes
         timeLeft: 600,     // 10 minutes (impossible state)
-        resetInterval: 24,
-        lastResetTimestamp: Date.now(),
+        rechargeRate: 30,
+        lastVisitTimestamp: Date.now(),
         expiredMessageLogged: false
       };
 
       // Even with "no change" to originalTime, should reset due to invalid timeLeft
-      const { timerData, wasReset } = applyTimerSettingsChange(corruptedTimer, 300, 24);
+      const { timerData, wasReset } = applyTimerSettingsChange(corruptedTimer, 300, 30);
 
       expect(wasReset).toBe(true);
       expect(timerData.timeLeft).toBe(300); // Fixed to match originalTime
@@ -147,12 +149,12 @@ describe('Timer Logic', () => {
       const corruptedTimer = {
         originalTime: 300,
         timeLeft: NaN,
-        resetInterval: 24,
-        lastResetTimestamp: Date.now(),
+        rechargeRate: 30,
+        lastVisitTimestamp: Date.now(),
         expiredMessageLogged: false
       };
 
-      const { timerData, wasReset } = applyTimerSettingsChange(corruptedTimer, 300, 24);
+      const { timerData, wasReset } = applyTimerSettingsChange(corruptedTimer, 300, 30);
 
       expect(wasReset).toBe(true);
       expect(timerData.timeLeft).toBe(300);
@@ -162,12 +164,12 @@ describe('Timer Logic', () => {
       const corruptedTimer = {
         originalTime: 300,
         timeLeft: -10,
-        resetInterval: 24,
-        lastResetTimestamp: Date.now(),
+        rechargeRate: 30,
+        lastVisitTimestamp: Date.now(),
         expiredMessageLogged: true
       };
 
-      const { timerData, wasReset } = applyTimerSettingsChange(corruptedTimer, 300, 24);
+      const { timerData, wasReset } = applyTimerSettingsChange(corruptedTimer, 300, 30);
 
       expect(wasReset).toBe(true);
       expect(timerData.timeLeft).toBe(300);
@@ -175,84 +177,168 @@ describe('Timer Logic', () => {
     });
   });
 
-  describe('checkAndResetIfIntervalPassed', () => {
-    let mockTimer;
-    const now = Date.now();
+  describe('normalizeRechargeRate', () => {
+    test('keeps a valid positive rate', () => {
+      expect(normalizeRechargeRate(300)).toBe(300);
+    });
 
-    beforeEach(() => {
-      mockTimer = {
+    test('falls back to 30 for missing or invalid rates', () => {
+      expect(normalizeRechargeRate(undefined)).toBe(30);
+      expect(normalizeRechargeRate(NaN)).toBe(30);
+      expect(normalizeRechargeRate(0)).toBe(30);
+      expect(normalizeRechargeRate(-5)).toBe(30);
+    });
+  });
+
+  describe('applyRecharge', () => {
+    const now = 1_700_000_000_000;
+    const HOUR = 60 * 60 * 1000;
+
+    test('credits earned seconds for time away (30s/hr)', () => {
+      // Away 1 hour at 30s/hr → +30s
+      const timer = {
         originalTime: 300,
         timeLeft: 0,
-        resetInterval: 24, // 24 hours
-        lastResetTimestamp: now - (25 * 60 * 60 * 1000), // 25 hours ago
+        rechargeRate: 30,
+        lastVisitTimestamp: now - HOUR,
         expiredMessageLogged: true
       };
-    });
 
-    // Bug fix: Timer should reset after reset interval passes
-    test('should reset timer after interval passed', () => {
-      const result = checkAndResetIfIntervalPassed(mockTimer, now);
-      
-      expect(result.timeLeft).toBe(300);
-      expect(result.lastResetTimestamp).toBe(now);
+      const result = applyRecharge(timer, now);
+
+      expect(result.timeLeft).toBe(30);
+      // Restoring time above zero re-arms the post-expiry log
       expect(result.expiredMessageLogged).toBe(false);
     });
 
-    test('should not reset timer before interval passed', () => {
-      mockTimer.lastResetTimestamp = now - (10 * 60 * 60 * 1000); // 10 hours ago
-      
-      const result = checkAndResetIfIntervalPassed(mockTimer, now);
-      
-      expect(result.timeLeft).toBe(0);
-      expect(result.lastResetTimestamp).toBe(mockTimer.lastResetTimestamp);
-      expect(result.expiredMessageLogged).toBe(true);
+    test('never recharges past the cap', () => {
+      const timer = {
+        originalTime: 60,
+        timeLeft: 50,
+        rechargeRate: 900, // 15m/hr would earn 900s in an hour
+        lastVisitTimestamp: now - HOUR,
+        expiredMessageLogged: false
+      };
+
+      const result = applyRecharge(timer, now);
+
+      expect(result.timeLeft).toBe(60); // clamped to cap, not 950
     });
 
-    test('should handle exact reset time', () => {
-      const exactResetTime = now;
-      mockTimer.lastResetTimestamp = exactResetTime - (24 * 60 * 60 * 1000);
-      
-      const result = checkAndResetIfIntervalPassed(mockTimer, exactResetTime);
-      
-      expect(result.timeLeft).toBe(300);
-    });
+    test('is a no-op when already full and refreshes the clock', () => {
+      const timer = {
+        originalTime: 300,
+        timeLeft: 300,
+        rechargeRate: 30,
+        lastVisitTimestamp: now - 10 * HOUR,
+        expiredMessageLogged: false
+      };
 
-    test('should reset timer when last reset timestamp is non-finite', () => {
-      mockTimer.lastResetTimestamp = NaN;
-
-      const result = checkAndResetIfIntervalPassed(mockTimer, now);
-
-      expect(result.timeLeft).toBe(300);
-      expect(result.lastResetTimestamp).toBe(now);
-      expect(result.expiredMessageLogged).toBe(false);
-    });
-
-    test('should reset timer when reset interval is non-finite', () => {
-      mockTimer.resetInterval = NaN;
-
-      const result = checkAndResetIfIntervalPassed(mockTimer, now);
+      const result = applyRecharge(timer, now);
 
       expect(result.timeLeft).toBe(300);
-      expect(result.lastResetTimestamp).toBe(now);
-      expect(result.expiredMessageLogged).toBe(false);
+      expect(result.lastVisitTimestamp).toBe(now);
     });
 
-    test('should replace an invalid reset interval with the default interval', () => {
-      mockTimer.resetInterval = NaN;
+    test('does not credit before a whole second has accrued', () => {
+      // 30s/hr ⇒ 1s every 120s. After 60s away, nothing whole earned yet.
+      const timer = {
+        originalTime: 300,
+        timeLeft: 100,
+        rechargeRate: 30,
+        lastVisitTimestamp: now - 60 * 1000,
+        expiredMessageLogged: false
+      };
 
-      const result = checkAndResetIfIntervalPassed(mockTimer, now);
+      const result = applyRecharge(timer, now);
 
-      expect(result.resetInterval).toBe(24);
+      expect(result.timeLeft).toBe(100);
+      expect(result.lastVisitTimestamp).toBe(timer.lastVisitTimestamp);
     });
 
-    test('should not reset a timer to a non-finite original time', () => {
-      mockTimer.originalTime = Infinity;
+    test('carries the sub-second remainder forward across passes', () => {
+      // 30s/hr ⇒ 1s per 120000ms. Away 180000ms = 1.5s ⇒ credit 1s and advance
+      // the clock by only 120000ms, leaving 60000ms (0.5s) pending.
+      const start = {
+        originalTime: 300,
+        timeLeft: 0,
+        rechargeRate: 30,
+        lastVisitTimestamp: now - 180000,
+        expiredMessageLogged: true
+      };
 
-      const result = checkAndResetIfIntervalPassed(mockTimer, now);
+      const first = applyRecharge(start, now);
+      expect(first.timeLeft).toBe(1);
+      expect(first.lastVisitTimestamp).toBe(now - 180000 + 120000); // consumed only 1s worth
+
+      // 60000ms more (total 120000ms past the advanced clock) ⇒ the next whole second
+      const second = applyRecharge(first, now + 60000);
+      expect(second.timeLeft).toBe(2);
+    });
+
+    test('defaults a missing recharge rate to 30s/hr', () => {
+      const timer = {
+        originalTime: 300,
+        timeLeft: 0,
+        lastVisitTimestamp: now - HOUR,
+        expiredMessageLogged: true
+      };
+
+      const result = applyRecharge(timer, now);
+
+      expect(result.rechargeRate).toBe(30);
+      expect(result.timeLeft).toBe(30);
+    });
+
+    test('does not credit negative time on a backwards clock jump', () => {
+      const timer = {
+        originalTime: 300,
+        timeLeft: 100,
+        rechargeRate: 300,
+        lastVisitTimestamp: now + HOUR, // future timestamp ⇒ negative elapsed
+        expiredMessageLogged: false
+      };
+
+      const result = applyRecharge(timer, now);
+
+      expect(result.timeLeft).toBe(100); // unchanged, never decreases
+    });
+
+    test('clamps a non-finite original time to zero and stays expired', () => {
+      const timer = {
+        originalTime: Infinity,
+        timeLeft: 0,
+        rechargeRate: 30,
+        lastVisitTimestamp: now - HOUR,
+        expiredMessageLogged: true
+      };
+
+      const result = applyRecharge(timer, now);
 
       expect(result.originalTime).toBe(0);
       expect(result.timeLeft).toBe(0);
-      expect(result.expiredMessageLogged).toBe(true);
+    });
+  });
+
+  describe('estimateSecondsUntilFull', () => {
+    test('returns 0 when already full', () => {
+      expect(
+        estimateSecondsUntilFull({ originalTime: 300, timeLeft: 300, rechargeRate: 30 })
+      ).toBe(0);
+    });
+
+    test('computes wall-clock seconds to refill the deficit', () => {
+      // deficit 30s at 30s/hr ⇒ 1 hour = 3600 wall-clock seconds
+      expect(
+        estimateSecondsUntilFull({ originalTime: 60, timeLeft: 30, rechargeRate: 30 })
+      ).toBe(3600);
+    });
+
+    test('scales with the recharge rate', () => {
+      // deficit 60s at 15m/hr (900s/hr) ⇒ 60/900 * 3600 = 240s
+      expect(
+        estimateSecondsUntilFull({ originalTime: 60, timeLeft: 0, rechargeRate: 900 })
+      ).toBe(240);
     });
   });
 
@@ -263,8 +349,8 @@ describe('Timer Logic', () => {
       mockTimer = {
         originalTime: 300,
         timeLeft: 100,
-        resetInterval: 24,
-        lastResetTimestamp: Date.now(),
+        rechargeRate: 30,
+        lastVisitTimestamp: Date.now(),
         expiredMessageLogged: false
       };
     });

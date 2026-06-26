@@ -23,19 +23,19 @@ function shouldResetTimer(oldOriginalTime, newOriginalTime, currentTimeLeft) {
  * Apply timer settings change and determine new state
  * @param {Object} timerData - Current timer data
  * @param {number} newOriginalTime - New time limit in seconds
- * @param {number} newResetInterval - New reset interval in hours
+ * @param {number} newRechargeRate - New recharge rate in seconds restored per hour away
  * @returns {Object} Updated timer data
  */
-function applyTimerSettingsChange(timerData, newOriginalTime, newResetInterval) {
+function applyTimerSettingsChange(timerData, newOriginalTime, newRechargeRate) {
   const result = { ...timerData };
   const needsReset = shouldResetTimer(timerData.originalTime, newOriginalTime, timerData.timeLeft);
 
   result.originalTime = newOriginalTime;
-  result.resetInterval = newResetInterval;
+  result.rechargeRate = newRechargeRate;
 
   if (needsReset) {
     result.timeLeft = newOriginalTime;
-    result.lastResetTimestamp = Date.now();
+    result.lastVisitTimestamp = Date.now();
     result.expiredMessageLogged = false;
   }
 
@@ -46,40 +46,99 @@ function applyTimerSettingsChange(timerData, newOriginalTime, newResetInterval) 
 }
 
 /**
- * Check if timer should be reset based on reset interval
- * @param {Object} timerData - Timer data with resetInterval and lastResetTimestamp
- * @param {number} currentTime - Current timestamp (for testing)
- * @returns {Object} Updated timer data if reset needed, original otherwise
+ * Normalize a recharge rate to a sane positive value (seconds restored per hour
+ * away). Falls back to the 30s/hr default for missing or invalid input.
+ * @param {number} rate - Candidate recharge rate
+ * @returns {number} A finite, positive recharge rate
  */
-function checkAndResetIfIntervalPassed(timerData, currentTime = Date.now()) {
+function normalizeRechargeRate(rate) {
+  return Number.isFinite(rate) && rate > 0 ? rate : 30;
+}
+
+/**
+ * Credit recharge earned while a domain was left alone.
+ *
+ * The budget refills continuously based on wall-clock time away, so this is
+ * computed lazily: it credits `floor(elapsed * rate)` whole seconds since
+ * `lastVisitTimestamp`, clamped to `originalTime`, and advances the timestamp
+ * only by the time those credited seconds consumed — carrying the sub-second
+ * remainder forward so nothing is lost across passes. It never exceeds the cap
+ * and never credits negative time (e.g. a backwards system-clock jump).
+ *
+ * @param {Object} timerData - Timer data with timeLeft, originalTime, rechargeRate, lastVisitTimestamp
+ * @param {number} currentTime - Current timestamp (for testing)
+ * @returns {Object} Updated timer data (always normalized; a copy when anything changed)
+ */
+function applyRecharge(timerData, currentTime = Date.now()) {
   const originalTime =
     Number.isFinite(timerData.originalTime) && timerData.originalTime > 0
       ? timerData.originalTime
       : 0;
-  const resetInterval =
-    Number.isFinite(timerData.resetInterval) && timerData.resetInterval > 0
-      ? timerData.resetInterval
-      : 24;
-  const resetIntervalMs = resetInterval * 60 * 60 * 1000;
-  const resetCanHappenAfterTimestamp = timerData.lastResetTimestamp + resetIntervalMs;
+  const rechargeRate = normalizeRechargeRate(timerData.rechargeRate);
+  const lastVisitTimestamp = Number.isFinite(timerData.lastVisitTimestamp)
+    ? timerData.lastVisitTimestamp
+    : currentTime;
+  const timeLeft =
+    Number.isFinite(timerData.timeLeft) && timerData.timeLeft > 0 ? timerData.timeLeft : 0;
 
-  if (
-    !Number.isFinite(timerData.lastResetTimestamp) ||
-    timerData.resetInterval !== resetInterval ||
-    timerData.originalTime !== originalTime ||
-    currentTime >= resetCanHappenAfterTimestamp
-  ) {
+  // Already at (or above) the cap: nothing to credit. Refresh the clock so the
+  // away-window starts fresh from now.
+  if (timeLeft >= originalTime) {
     return {
       ...timerData,
       originalTime,
-      resetInterval,
-      timeLeft: originalTime,
-      lastResetTimestamp: currentTime,
-      expiredMessageLogged: originalTime <= 0,
+      rechargeRate,
+      timeLeft: Math.min(timeLeft, originalTime),
+      lastVisitTimestamp: currentTime,
     };
   }
 
-  return timerData;
+  const ratePerMs = rechargeRate / (60 * 60 * 1000); // seconds earned per ms away
+  const earned = Math.floor((currentTime - lastVisitTimestamp) * ratePerMs);
+
+  if (earned <= 0) {
+    return {
+      ...timerData,
+      originalTime,
+      rechargeRate,
+      timeLeft,
+      lastVisitTimestamp,
+    };
+  }
+
+  const newTimeLeft = Math.min(originalTime, timeLeft + earned);
+  const credited = newTimeLeft - timeLeft;
+  // Advance the clock only by the wall-clock time the credited whole seconds
+  // consumed, leaving any sub-second remainder to accrue next pass.
+  const consumedMs = credited / ratePerMs;
+
+  return {
+    ...timerData,
+    originalTime,
+    rechargeRate,
+    timeLeft: newTimeLeft,
+    lastVisitTimestamp: lastVisitTimestamp + consumedMs,
+    // Restoring time above zero re-arms the post-expiry debug log.
+    expiredMessageLogged: newTimeLeft <= 0,
+  };
+}
+
+/**
+ * Estimate the wall-clock seconds until a timer recharges back to its cap.
+ * Returns 0 when the budget is already full.
+ * @param {Object} timerData - Timer data with timeLeft, originalTime, rechargeRate
+ * @returns {number} Whole seconds until full (0 if already full)
+ */
+function estimateSecondsUntilFull(timerData) {
+  const originalTime = Number.isFinite(timerData.originalTime) ? timerData.originalTime : 0;
+  const rechargeRate = normalizeRechargeRate(timerData.rechargeRate);
+  const timeLeft = Number.isFinite(timerData.timeLeft) ? timerData.timeLeft : 0;
+  const deficit = originalTime - timeLeft;
+  if (deficit <= 0) {
+    return 0;
+  }
+  // rechargeRate budget-seconds restored per 3600 wall-clock seconds.
+  return Math.ceil((deficit / rechargeRate) * 3600);
 }
 
 /**
@@ -266,7 +325,9 @@ if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     shouldResetTimer,
     applyTimerSettingsChange,
-    checkAndResetIfIntervalPassed,
+    normalizeRechargeRate,
+    applyRecharge,
+    estimateSecondsUntilFull,
     decrementTimer,
     parseURL,
     validateDomain,
@@ -281,7 +342,9 @@ if (typeof module !== "undefined" && module.exports) {
   window.TimerUtils = {
     shouldResetTimer,
     applyTimerSettingsChange,
-    checkAndResetIfIntervalPassed,
+    normalizeRechargeRate,
+    applyRecharge,
+    estimateSecondsUntilFull,
     decrementTimer,
     parseURL,
     validateDomain,
@@ -296,7 +359,9 @@ if (typeof module !== "undefined" && module.exports) {
   globalThis.TimerUtils = {
     shouldResetTimer,
     applyTimerSettingsChange,
-    checkAndResetIfIntervalPassed,
+    normalizeRechargeRate,
+    applyRecharge,
+    estimateSecondsUntilFull,
     decrementTimer,
     parseURL,
     validateDomain,

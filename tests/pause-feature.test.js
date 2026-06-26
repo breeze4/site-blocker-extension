@@ -17,10 +17,10 @@ const {
 const {
   isTrackableUrl,
   getDomainFromUrl,
-  getInheritedResetInterval,
+  getInheritedRechargeRate,
   getProgressPercent,
   DEFAULT_BLOCK_MINUTES,
-  DEFAULT_RESET_INTERVAL_HOURS,
+  DEFAULT_RECHARGE_RATE,
 } = require("../src/popup");
 
 describe("pause password helpers", () => {
@@ -102,26 +102,26 @@ describe("popup pure helpers", () => {
     });
   });
 
-  describe("getInheritedResetInterval", () => {
-    test("returns the interval from an existing domain", () => {
+  describe("getInheritedRechargeRate", () => {
+    test("returns the rate from an existing domain", () => {
       const domainTimers = {
-        "example.com": { resetInterval: 8 },
-        "other.com": { resetInterval: 8 },
+        "example.com": { rechargeRate: 8 },
+        "other.com": { rechargeRate: 8 },
       };
-      expect(getInheritedResetInterval(domainTimers)).toBe(8);
+      expect(getInheritedRechargeRate(domainTimers)).toBe(8);
     });
 
     test("falls back to the default with no domains", () => {
-      expect(getInheritedResetInterval({})).toBe(DEFAULT_RESET_INTERVAL_HOURS);
-      expect(getInheritedResetInterval(null)).toBe(DEFAULT_RESET_INTERVAL_HOURS);
+      expect(getInheritedRechargeRate({})).toBe(DEFAULT_RECHARGE_RATE);
+      expect(getInheritedRechargeRate(null)).toBe(DEFAULT_RECHARGE_RATE);
     });
 
-    test("skips domains with an invalid reset interval", () => {
+    test("skips domains with an invalid recharge rate", () => {
       const domainTimers = {
-        "bad.com": { resetInterval: 0 },
-        "good.com": { resetInterval: 1 },
+        "bad.com": { rechargeRate: 0 },
+        "good.com": { rechargeRate: 1 },
       };
-      expect(getInheritedResetInterval(domainTimers)).toBe(1);
+      expect(getInheritedRechargeRate(domainTimers)).toBe(1);
     });
   });
 

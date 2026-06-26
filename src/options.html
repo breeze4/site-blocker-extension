@@ -49,7 +49,7 @@
     th:nth-child(7), td:nth-child(7) { /* All Time */
       width: 10%;
     }
-    th:nth-child(8), td:nth-child(8) { /* Last Reset */
+    th:nth-child(8), td:nth-child(8) { /* Full In */
       width: 10%;
     }
     th:nth-child(9), td:nth-child(9) { /* Actions */
@@ -538,22 +538,34 @@
 
   <h2>Global Settings</h2>
   <fieldset>
-    <legend>Reset Interval (applies to all sites)</legend>
-    <div class="radio-group" id="globalResetIntervalGroup" role="radiogroup" aria-labelledby="global-reset-legend">
+    <legend>Recharge Rate (applies to all sites)</legend>
+    <div class="radio-group" id="globalRechargeRateGroup" role="radiogroup" aria-labelledby="global-recharge-help">
       <div class="radio-option">
-        <input type="radio" id="globalReset1" name="globalResetInterval" value="1" aria-describedby="global-reset-help">
-        <label for="globalReset1">1 hour</label>
+        <input type="radio" id="globalRecharge30" name="globalRechargeRate" value="30" checked aria-describedby="global-recharge-help">
+        <label for="globalRecharge30">30s / hr</label>
       </div>
       <div class="radio-option">
-        <input type="radio" id="globalReset8" name="globalResetInterval" value="8" aria-describedby="global-reset-help">
-        <label for="globalReset8">8 hours</label>
+        <input type="radio" id="globalRecharge60" name="globalRechargeRate" value="60" aria-describedby="global-recharge-help">
+        <label for="globalRecharge60">1m / hr</label>
       </div>
       <div class="radio-option">
-        <input type="radio" id="globalReset24" name="globalResetInterval" value="24" checked aria-describedby="global-reset-help">
-        <label for="globalReset24">24 hours</label>
+        <input type="radio" id="globalRecharge120" name="globalRechargeRate" value="120" aria-describedby="global-recharge-help">
+        <label for="globalRecharge120">2m / hr</label>
+      </div>
+      <div class="radio-option">
+        <input type="radio" id="globalRecharge300" name="globalRechargeRate" value="300" aria-describedby="global-recharge-help">
+        <label for="globalRecharge300">5m / hr</label>
+      </div>
+      <div class="radio-option">
+        <input type="radio" id="globalRecharge600" name="globalRechargeRate" value="600" aria-describedby="global-recharge-help">
+        <label for="globalRecharge600">10m / hr</label>
+      </div>
+      <div class="radio-option">
+        <input type="radio" id="globalRecharge900" name="globalRechargeRate" value="900" aria-describedby="global-recharge-help">
+        <label for="globalRecharge900">15m / hr</label>
       </div>
     </div>
-    <div id="global-reset-help" class="sr-only">Choose how often site timers reset automatically</div>
+    <div id="global-recharge-help" class="sr-only">Choose how fast a site's time budget refills while you are away from it</div>
   </fieldset>
 
   <fieldset>
@@ -625,7 +637,7 @@
           <th role="columnheader" scope="col">Last 7d</th>
           <th role="columnheader" scope="col">Last 30d</th>
           <th role="columnheader" scope="col">All Time</th>
-          <th role="columnheader" scope="col">Last Reset</th>
+          <th role="columnheader" scope="col">Full In</th>
           <th role="columnheader" scope="col">Actions</th>
         </tr>
       </thead>

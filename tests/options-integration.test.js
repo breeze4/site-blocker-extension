@@ -20,13 +20,13 @@ describe('Options.js Integration', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     mockDomainTimers = {
       [exampleDomain]: {
-        originalTime: 600, // 10 minutes  
+        originalTime: 600, // 10 minutes
         timeLeft: 450,     // 7.5 minutes left
-        resetInterval: 24,
-        lastResetTimestamp: Date.now() - 1000,
+        rechargeRate: 30,
+        lastVisitTimestamp: Date.now() - 1000,
         expiredMessageLogged: false
       }
     };
@@ -39,13 +39,13 @@ describe('Options.js Integration', () => {
   // being used by the options code
   test('timer settings change uses correct logic in test environment', async () => {
     const { applyTimerSettingsChange } = require('../src/timer-utils');
-    
+
     const currentTimer = mockDomainTimers[exampleDomain];
     const newTimeInSeconds = 300; // Change from 10m to 5m
-    
+
     // This is what should happen in options.js when TimerUtils is available
-    const result = applyTimerSettingsChange(currentTimer, newTimeInSeconds, 24);
-    
+    const result = applyTimerSettingsChange(currentTimer, newTimeInSeconds, 30);
+
     // Should reset because we're going from 10m to 5m with 7.5m left
     expect(result.wasReset).toBe(true);
     expect(result.timerData.originalTime).toBe(300);
@@ -55,32 +55,32 @@ describe('Options.js Integration', () => {
 
   test('save button enable/disable logic works correctly', async () => {
     const { applyTimerSettingsChange } = require('../src/timer-utils');
-    
+
     const currentTimer = mockDomainTimers[exampleDomain];
-    
+
     // Test same value (should not reset)
-    const sameValue = applyTimerSettingsChange(currentTimer, 600, 24); // Same as current
+    const sameValue = applyTimerSettingsChange(currentTimer, 600, 30); // Same as current
     expect(sameValue.wasReset).toBe(false);
-    
-    // Test different value (should reset) 
-    const differentValue = applyTimerSettingsChange(currentTimer, 300, 24); // Different
+
+    // Test different value (should reset)
+    const differentValue = applyTimerSettingsChange(currentTimer, 300, 30); // Different
     expect(differentValue.wasReset).toBe(true);
   });
 
   test('handles edge case where timeLeft exceeds originalTime', async () => {
     const { applyTimerSettingsChange } = require('../src/timer-utils');
-    
+
     // Simulate corrupted state
     const corruptedTimer = {
       originalTime: 300,
       timeLeft: 600, // More than original
-      resetInterval: 24,
-      lastResetTimestamp: Date.now(),
+      rechargeRate: 30,
+      lastVisitTimestamp: Date.now(),
       expiredMessageLogged: false
     };
-    
+
     // Apply same setting (should still reset due to timeLeft > originalTime)
-    const result = applyTimerSettingsChange(corruptedTimer, 300, 24);
+    const result = applyTimerSettingsChange(corruptedTimer, 300, 30);
     expect(result.wasReset).toBe(true);
     expect(result.timerData.timeLeft).toBe(300);
   });
@@ -100,13 +100,13 @@ describe('Options.js Integration', () => {
 
       testCases.forEach(testCase => {
         const parseResult = parseURL(testCase.input);
-        
+
         if (testCase.expectDomain === null) {
           expect(parseResult.success).toBe(false);
         } else {
           expect(parseResult.success).toBe(true);
           expect(parseResult.domain).toBe(testCase.expectDomain);
-          
+
           const validationResult = validateDomain(parseResult.domain);
           expect(validationResult.valid).toBe(testCase.expectValid);
         }
@@ -142,10 +142,10 @@ describe('Options.js Integration', () => {
         <div id="onboarding" style="display: none;">
           <button id="dismissOnboarding">Dismiss</button>
         </div>
-        <div id="globalResetIntervalGroup">
-          <input type="radio" id="globalReset1" name="globalResetInterval" value="1">
-          <input type="radio" id="globalReset8" name="globalResetInterval" value="8">
-          <input type="radio" id="globalReset24" name="globalResetInterval" value="24" checked>
+        <div id="globalRechargeRateGroup">
+          <input type="radio" id="globalRecharge30" name="globalRechargeRate" value="30" checked>
+          <input type="radio" id="globalRecharge60" name="globalRechargeRate" value="60">
+          <input type="radio" id="globalRecharge900" name="globalRechargeRate" value="900">
         </div>
         <form id="siteForm">
           <input id="urlInput">
@@ -171,8 +171,8 @@ describe('Options.js Integration', () => {
         [storedDomain]: {
           originalTime: 300,
           timeLeft: 120,
-          resetInterval: 24,
-          lastResetTimestamp: Date.now(),
+          rechargeRate: 30,
+          lastVisitTimestamp: Date.now(),
           expiredMessageLogged: false
         }
       };
@@ -211,8 +211,8 @@ describe('Options.js Integration', () => {
         [storedDomain]: {
           originalTime: 300,
           timeLeft: 120,
-          resetInterval: 24,
-          lastResetTimestamp: Date.now(),
+          rechargeRate: 30,
+          lastVisitTimestamp: Date.now(),
           expiredMessageLogged: false
         }
       };
@@ -254,8 +254,8 @@ describe('Options.js Integration', () => {
         [storedDomain]: {
           originalTime: 300,
           timeLeft: 120,
-          resetInterval: 24,
-          lastResetTimestamp: Date.now(),
+          rechargeRate: 30,
+          lastVisitTimestamp: Date.now(),
           expiredMessageLogged: false
         }
       };
@@ -288,8 +288,8 @@ describe('Options.js Integration', () => {
         'example.com': {
           originalTime: 300,
           timeLeft: 120,
-          resetInterval: 24,
-          lastResetTimestamp: Date.now(),
+          rechargeRate: 30,
+          lastVisitTimestamp: Date.now(),
           expiredMessageLogged: false
         }
       };
@@ -325,8 +325,8 @@ describe('Options.js Integration', () => {
         [storedDomain]: {
           originalTime: 300,
           timeLeft: 120,
-          resetInterval: 24,
-          lastResetTimestamp: Date.now(),
+          rechargeRate: 30,
+          lastVisitTimestamp: Date.now(),
           expiredMessageLogged: false
         }
       };
@@ -371,8 +371,8 @@ describe('Options.js Integration', () => {
         [storedDomain]: {
           originalTime: 300,
           timeLeft: 120,
-          resetInterval: 24,
-          lastResetTimestamp: Date.now(),
+          rechargeRate: 30,
+          lastVisitTimestamp: Date.now(),
           expiredMessageLogged: false
         }
       };
@@ -419,8 +419,8 @@ describe('Options.js Integration', () => {
         [storedDomain]: {
           originalTime: 300,
           timeLeft: 120,
-          resetInterval: 24,
-          lastResetTimestamp: Date.now(),
+          rechargeRate: 30,
+          lastVisitTimestamp: Date.now(),
           expiredMessageLogged: false
         }
       };
@@ -470,8 +470,8 @@ describe('Options.js Integration', () => {
         [storedDomain]: {
           originalTime: 300,
           timeLeft: 120,
-          resetInterval: 24,
-          lastResetTimestamp: Date.now(),
+          rechargeRate: 30,
+          lastVisitTimestamp: Date.now(),
           expiredMessageLogged: false
         }
       };
@@ -516,8 +516,8 @@ describe('Options.js Integration', () => {
         [storedDomain]: {
           originalTime: 300,
           timeLeft: 0,
-          resetInterval: 24,
-          lastResetTimestamp: Date.now() - 1000,
+          rechargeRate: 30,
+          lastVisitTimestamp: Date.now() - 1000,
           expiredMessageLogged: true
         }
       };
@@ -561,8 +561,8 @@ describe('Options.js Integration', () => {
         'example.com': {
           originalTime: 300,
           timeLeft: 0,
-          resetInterval: 24,
-          lastResetTimestamp: Date.now() - 5000,
+          rechargeRate: 30,
+          lastVisitTimestamp: Date.now() - 5000,
           expiredMessageLogged: true
         },
         'broken.example.com': null
@@ -598,8 +598,8 @@ describe('Options.js Integration', () => {
       expect(resetWrite[0].domainTimers['example.com']).toMatchObject({
         originalTime: 300,
         timeLeft: 300,
-        resetInterval: 24,
-        lastResetTimestamp: Date.now(),
+        rechargeRate: 30,
+        lastVisitTimestamp: Date.now(),
         expiredMessageLogged: false
       });
       expect(resetWrite[0].domainTimers['broken.example.com']).toBeNull();
@@ -644,8 +644,8 @@ describe('Options.js Integration', () => {
         [storedDomain]: {
           originalTime: 300,
           timeLeft: 120,
-          resetInterval: 24,
-          lastResetTimestamp: Date.now(),
+          rechargeRate: 30,
+          lastVisitTimestamp: Date.now(),
           expiredMessageLogged: false
         }
       };
@@ -705,8 +705,8 @@ describe('Options.js Integration', () => {
         [storedDomain]: {
           originalTime: 300,
           timeLeft: 120,
-          resetInterval: 24,
-          lastResetTimestamp: Date.now(),
+          rechargeRate: 30,
+          lastVisitTimestamp: Date.now(),
           expiredMessageLogged: false
         }
       };
@@ -754,15 +754,15 @@ describe('Options.js Integration', () => {
         'example.com': {
           originalTime: 300,
           timeLeft: 120,
-          resetInterval: 24,
-          lastResetTimestamp: Date.now(),
+          rechargeRate: 30,
+          lastVisitTimestamp: Date.now(),
           expiredMessageLogged: false
         },
         'another.example.com': {
           originalTime: 600,
           timeLeft: 240,
-          resetInterval: 24,
-          lastResetTimestamp: Date.now(),
+          rechargeRate: 30,
+          lastVisitTimestamp: Date.now(),
           expiredMessageLogged: false
         }
       };
@@ -838,15 +838,15 @@ describe('Options.js Integration', () => {
         'example.com': {
           originalTime: 300,
           timeLeft: 120,
-          resetInterval: 24,
-          lastResetTimestamp: Date.now(),
+          rechargeRate: 30,
+          lastVisitTimestamp: Date.now(),
           expiredMessageLogged: false
         },
         'broken.example.com': {
           originalTime: 600,
           timeLeft: 240,
-          resetInterval: 24,
-          lastResetTimestamp: Date.now(),
+          rechargeRate: 30,
+          lastVisitTimestamp: Date.now(),
           expiredMessageLogged: false
         }
       };
@@ -938,14 +938,16 @@ describe('Options.js Integration', () => {
       expect(resetWrite[0].timeTracking).toEqual({});
     });
 
-    test('renders non-finite time left values as invalid time', async () => {
+    test('renders non-finite time left values as zero time', async () => {
+      // applyRecharge normalises non-finite timeLeft to 0 before display,
+      // so the cell shows "0 min 0 sec" rather than "Invalid time".
       const storedDomain = 'example.com';
       const domainTimers = {
         [storedDomain]: {
           originalTime: 300,
           timeLeft: Infinity,
-          resetInterval: 24,
-          lastResetTimestamp: Date.now(),
+          rechargeRate: 30,
+          lastVisitTimestamp: Date.now(),
           expiredMessageLogged: false
         }
       };
@@ -968,7 +970,7 @@ describe('Options.js Integration', () => {
 
       const timeLeftCell = document.querySelector('#domainListBody tr').cells[2];
 
-      expect(timeLeftCell.textContent).toBe('Invalid time');
+      expect(timeLeftCell.textContent).toBe('0 min 0 sec');
     });
 
     test('renders non-finite time tracking totals as zero seconds', async () => {
@@ -977,8 +979,8 @@ describe('Options.js Integration', () => {
         [storedDomain]: {
           originalTime: 300,
           timeLeft: 120,
-          resetInterval: 24,
-          lastResetTimestamp: Date.now(),
+          rechargeRate: 30,
+          lastVisitTimestamp: Date.now(),
           expiredMessageLogged: false
         }
       };
@@ -1014,14 +1016,14 @@ describe('Options.js Integration', () => {
       expect(allTimeCell.textContent).toBe('0s');
     });
 
-    test('does not write malformed global reset intervals into stored timers', async () => {
+    test('does not write malformed global recharge rates into stored timers', async () => {
       const storedDomain = 'example.com';
       const domainTimers = {
         [storedDomain]: {
           originalTime: 300,
           timeLeft: 120,
-          resetInterval: 24,
-          lastResetTimestamp: Date.now(),
+          rechargeRate: 30,
+          lastVisitTimestamp: Date.now(),
           expiredMessageLogged: false
         }
       };
@@ -1043,25 +1045,25 @@ describe('Options.js Integration', () => {
       }
 
       global.StorageUtils.setToStorage.mockClear();
-      document.getElementById('globalReset24').value = 'not-a-number';
+      document.getElementById('globalRecharge30').value = 'not-a-number';
       document
-        .getElementById('globalResetIntervalGroup')
+        .getElementById('globalRechargeRateGroup')
         .dispatchEvent(new Event('change', { bubbles: true }));
       for (let i = 0; i < 10; i++) {
         await Promise.resolve();
       }
 
       expect(global.StorageUtils.setToStorage).not.toHaveBeenCalled();
-      expect(domainTimers[storedDomain].resetInterval).toBe(24);
+      expect(domainTimers[storedDomain].rechargeRate).toBe(30);
     });
 
-    test('global reset interval skips malformed timer records instead of aborting the update', async () => {
+    test('global recharge rate skips malformed timer records instead of aborting the update', async () => {
       const domainTimers = {
         'example.com': {
           originalTime: 300,
           timeLeft: 120,
-          resetInterval: 24,
-          lastResetTimestamp: Date.now(),
+          rechargeRate: 30,
+          lastVisitTimestamp: Date.now(),
           expiredMessageLogged: false
         },
         'broken.example.com': null
@@ -1084,9 +1086,9 @@ describe('Options.js Integration', () => {
       }
 
       global.StorageUtils.setToStorage.mockClear();
-      document.getElementById('globalReset8').checked = true;
+      document.getElementById('globalRecharge60').checked = true;
       document
-        .getElementById('globalResetIntervalGroup')
+        .getElementById('globalRechargeRateGroup')
         .dispatchEvent(new Event('change', { bubbles: true }));
       for (let i = 0; i < 10; i++) {
         await Promise.resolve();
@@ -1100,13 +1102,13 @@ describe('Options.js Integration', () => {
       expect(intervalWrite[0].domainTimers['example.com']).toMatchObject({
         originalTime: 300,
         timeLeft: 120,
-        resetInterval: 8,
+        rechargeRate: 60,
         expiredMessageLogged: false
       });
       expect(intervalWrite[0].domainTimers['broken.example.com']).toBeNull();
     });
 
-    test('global reset interval repairs malformed top-level timer storage', async () => {
+    test('global recharge rate repairs malformed top-level timer storage', async () => {
       global.StorageUtils.getFromStorage = jest.fn((key) => {
         if (key === 'domainTimers') {
           return Promise.resolve('corrupt');
@@ -1124,9 +1126,9 @@ describe('Options.js Integration', () => {
       }
 
       global.StorageUtils.setToStorage.mockClear();
-      document.getElementById('globalReset8').checked = true;
+      document.getElementById('globalRecharge60').checked = true;
       document
-        .getElementById('globalResetIntervalGroup')
+        .getElementById('globalRechargeRateGroup')
         .dispatchEvent(new Event('change', { bubbles: true }));
       for (let i = 0; i < 10; i++) {
         await Promise.resolve();
@@ -1208,8 +1210,8 @@ describe('Options.js Integration', () => {
         'example.com': {
           originalTime: 300,
           timeLeft: 300,
-          resetInterval: 24,
-          lastResetTimestamp: expect.any(Number),
+          rechargeRate: 30,
+          lastVisitTimestamp: expect.any(Number),
           expiredMessageLogged: false
         }
       });
@@ -1221,8 +1223,8 @@ describe('Options.js Integration', () => {
         [storedDomain]: {
           originalTime: 300,
           timeLeft: 120,
-          resetInterval: 24,
-          lastResetTimestamp: Date.now(),
+          rechargeRate: 30,
+          lastVisitTimestamp: Date.now(),
           expiredMessageLogged: false
         }
       };
@@ -1258,7 +1260,7 @@ describe('Options.js Integration', () => {
       expect(domainTimers[storedDomain]).toMatchObject({
         originalTime: 300,
         timeLeft: 120,
-        resetInterval: 24
+        rechargeRate: 30
       });
     });
 
@@ -1268,8 +1270,8 @@ describe('Options.js Integration', () => {
         [storedDomain]: {
           originalTime: 300,
           timeLeft: 120,
-          resetInterval: 24,
-          lastResetTimestamp: Date.now(),
+          rechargeRate: 30,
+          lastVisitTimestamp: Date.now(),
           expiredMessageLogged: false
         }
       };

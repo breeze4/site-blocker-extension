@@ -8,43 +8,43 @@ const defaultDomainTimers = {
   "www.reddit.com": {
     originalTime: 60,
     timeLeft: 60,
-    resetInterval: 24,
-    lastResetTimestamp: Date.now(),
+    rechargeRate: 30,
+    lastVisitTimestamp: Date.now(),
     expiredMessageLogged: false,
   },
   "old.reddit.com": {
     originalTime: 60,
     timeLeft: 60,
-    resetInterval: 24,
-    lastResetTimestamp: Date.now(),
+    rechargeRate: 30,
+    lastVisitTimestamp: Date.now(),
     expiredMessageLogged: false,
   },
   "twitter.com": {
     originalTime: 60,
     timeLeft: 60,
-    resetInterval: 24,
-    lastResetTimestamp: Date.now(),
+    rechargeRate: 30,
+    lastVisitTimestamp: Date.now(),
     expiredMessageLogged: false,
   },
   "x.com": {
     originalTime: 60,
     timeLeft: 60,
-    resetInterval: 24,
-    lastResetTimestamp: Date.now(),
+    rechargeRate: 30,
+    lastVisitTimestamp: Date.now(),
     expiredMessageLogged: false,
   },
   "instagram.com": {
     originalTime: 60,
     timeLeft: 60,
-    resetInterval: 24,
-    lastResetTimestamp: Date.now(),
+    rechargeRate: 30,
+    lastVisitTimestamp: Date.now(),
     expiredMessageLogged: false,
   },
   "www.instagram.com": {
     originalTime: 60,
     timeLeft: 60,
-    resetInterval: 24,
-    lastResetTimestamp: Date.now(),
+    rechargeRate: 30,
+    lastVisitTimestamp: Date.now(),
     expiredMessageLogged: false,
   },
 };
@@ -140,8 +140,12 @@ async function initializeDomainTimeTracking(domain) {
   } catch (error) {}
 }
 
-// This function checks if any of the timers have expired and need to be reset. This is based on the `resetInterval` set for each domain.
-async function resetTimersIfNeeded(domainTimers) {
+// Credits recharge earned while each domain was left alone. The budget refills
+// based on `rechargeRate` (seconds restored per hour away) since the domain was
+// last the active focused tab (`lastVisitTimestamp`), capped at `originalTime`.
+// The active tab keeps its timestamp current each tick, so it never recharges
+// while in use.
+async function applyRechargeToAllTimers(domainTimers) {
   if (!isTimerRecord(domainTimers)) {
     return {};
   }
@@ -154,18 +158,39 @@ async function resetTimersIfNeeded(domainTimers) {
     }
 
     // Use TimerUtils function if available (should be available after importScripts)
-    if (typeof TimerUtils !== "undefined" && TimerUtils.checkAndResetIfIntervalPassed) {
-      domainTimers[domain] = TimerUtils.checkAndResetIfIntervalPassed(timerData, currentTime);
+    if (typeof TimerUtils !== "undefined" && TimerUtils.applyRecharge) {
+      domainTimers[domain] = TimerUtils.applyRecharge(timerData, currentTime);
     } else {
-      // Fallback to original logic
-      const resetIntervalMs = timerData.resetInterval * 60 * 60 * 1000;
-      const resetCanHappenAfterTimestamp = timerData.lastResetTimestamp + resetIntervalMs;
-      if (currentTime >= resetCanHappenAfterTimestamp) {
-        timerData.timeLeft = timerData.originalTime;
-        timerData.lastResetTimestamp = currentTime;
-        timerData.expiredMessageLogged = false;
-        domainTimers[domain] = timerData;
+      // Fallback to inline recharge logic
+      const originalTime =
+        Number.isFinite(timerData.originalTime) && timerData.originalTime > 0
+          ? timerData.originalTime
+          : 0;
+      const rechargeRate =
+        Number.isFinite(timerData.rechargeRate) && timerData.rechargeRate > 0
+          ? timerData.rechargeRate
+          : 30;
+      const lastVisitTimestamp = Number.isFinite(timerData.lastVisitTimestamp)
+        ? timerData.lastVisitTimestamp
+        : currentTime;
+      const timeLeft =
+        Number.isFinite(timerData.timeLeft) && timerData.timeLeft > 0 ? timerData.timeLeft : 0;
+
+      if (timeLeft >= originalTime) {
+        timerData.timeLeft = Math.min(timeLeft, originalTime);
+        timerData.lastVisitTimestamp = currentTime;
+      } else {
+        const ratePerMs = rechargeRate / (60 * 60 * 1000);
+        const earned = Math.floor((currentTime - lastVisitTimestamp) * ratePerMs);
+        if (earned > 0) {
+          const newTimeLeft = Math.min(originalTime, timeLeft + earned);
+          const credited = newTimeLeft - timeLeft;
+          timerData.timeLeft = newTimeLeft;
+          timerData.lastVisitTimestamp = lastVisitTimestamp + credited / ratePerMs;
+          timerData.expiredMessageLogged = newTimeLeft <= 0;
+        }
       }
+      domainTimers[domain] = timerData;
     }
   }
   return domainTimers;
@@ -422,8 +447,10 @@ async function handleTimerForTab(tab) {
       return;
     }
 
-    // Opportunistically reset timers.
-    domainTimers = await resetTimersIfNeeded(domainTimers);
+    // Opportunistically credit recharge earned while domains were left alone,
+    // before deciding whether this tab is blocked — a recharged domain that had
+    // hit zero becomes usable again.
+    domainTimers = await applyRechargeToAllTimers(domainTimers);
     await saveDomainTimers(domainTimers);
 
     const domainTimer = domainTimers[domain];
@@ -536,6 +563,10 @@ async function handleTimerForTab(tab) {
             currentTimers[domain].expiredMessageLogged = true;
           }
         }
+
+        // The active tab is being visited, not recharging: keep its recharge
+        // clock current so no away-time accrues while it ticks down.
+        currentTimers[domain].lastVisitTimestamp = Date.now();
 
         await saveDomainTimers(currentTimers);
 

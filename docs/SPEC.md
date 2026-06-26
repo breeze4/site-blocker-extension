@@ -35,16 +35,34 @@ Single-writer principle: only the background service worker writes `timeLeft`. E
 Per-domain timers live in `chrome.storage.local` under `domainTimers` (see Storage Data Models). A default set seeds common social sites on first install.
 
 - The worker handles a tab on activation, navigation completion, and window-focus changes (`onActivated`, `onUpdated`, `onFocusChanged`). Concurrent handling is guarded so only one timer runs at a time.
-- On each pass it opportunistically applies due resets, then, if the active tab's hostname is a tracked domain with positive time left, starts a `setInterval` that decrements `timeLeft` by one second.
+- On each pass it credits any earned recharge to away domains (see Recharge over time), then, if the active tab's hostname is a tracked domain with positive time left, starts a `setInterval` that decrements `timeLeft` by one second.
 - The countdown only runs while the browser is focused and the active tab is still on that domain. Switching tabs/domains, losing window focus, or pausing stops it.
 - When `timeLeft` reaches zero, the worker stops the timer and redirects the active tab to `chrome://newtab`. Re-navigating to an expired domain redirects again.
 - `content.js` independently blocks an already-expired page on load by replacing the page body with an "Access Blocked" message (covers a page that was open before expiry, or reopened while out of time).
 
-### Reset intervals
+### Recharge over time
 
-- Each domain carries a `resetInterval` in hours (1, 8, or 24; default 24). When that long has passed since `lastResetTimestamp`, `timeLeft` is restored to `originalTime` on the next tab pass.
-- The reset interval is a single global setting in Options: changing it rewrites `resetInterval` for every tracked domain.
-- Options also offers a manual "Reset Timers" button that restores every domain's `timeLeft` immediately.
+The budget regenerates continuously instead of resetting on a fixed schedule. The old once-per-`N`-hours reset was clunky: it fired `N` hours after the last reset (not at a predictable wall-clock time), so the user could never anticipate when access would return. Recharge replaces it with a steadily refilling budget that is keyed to how long the site has been left alone.
+
+- Each domain has a maximum budget `originalTime` (the cap) and a current `timeLeft`. While the domain is **not** the active, focused tab, `timeLeft` accrues at the domain's `rechargeRate` — seconds restored per hour away — capped at `originalTime`. It never exceeds the cap.
+- Recharge is keyed to **time away**, not wall-clock or calendar. Being on the site spends; being away earns. The active tab never recharges, even when idle on the page — you are still "visiting" it.
+- `lastVisitTimestamp` marks the last moment the domain was the active focused tab. The worker keeps it current each second while the tab is active (so no recharge accrues during a visit); when the user leaves, it freezes and the away-time clock starts from there.
+- On each tab pass the worker credits any earned recharge to every away domain **before** deciding whether the active tab is blocked. So a domain that had hit zero and then sat untouched climbs back above zero and becomes usable again — a gradual return rather than a cliff-edge reset. Crediting carries the sub-second remainder forward (it advances `lastVisitTimestamp` only by the time the credited whole seconds consumed) so no fractional time is lost across passes.
+- The recharge rate is a single global setting in Options: 30s, 1m, 2m, 5m, 10m, or 15m restored per hour (default 30s/hr). Changing it rewrites `rechargeRate` for every tracked domain.
+- Options also offers a manual "Reset All Timers" button that restores every domain's `timeLeft` to its cap immediately.
+
+Crediting algorithm (pure helper in `timer-utils.js`, given the timer and the current time):
+
+```text
+if timeLeft >= originalTime: return unchanged   // already full
+ratePerMs   = rechargeRate / 3_600_000          // seconds earned per ms away
+earned      = floor((now - lastVisitTimestamp) * ratePerMs)
+if earned <= 0: return unchanged
+newTimeLeft = min(originalTime, timeLeft + earned)
+credited    = newTimeLeft - timeLeft
+lastVisitTimestamp += credited / ratePerMs      // consume only what was credited; keep the remainder
+timeLeft = newTimeLeft
+```
 
 ### Time-tracking analytics
 
@@ -62,9 +80,10 @@ Actual time spent per domain is recorded separately from the countdown, under `t
 The full-tab configuration and analytics surface.
 
 - Add a domain via a single input that parses full URLs, partial URLs, or bare domains, previews the resulting hostname in real time, validates it (rejects IPs, `localhost`, malformed input), and warns on duplicates. The full hostname is kept, so subdomains are tracked separately.
-- A table lists every tracked domain, sorted by base domain then subdomain, with columns: Domain, Time Allowed (inline time-limit radios + Save), Time Left, Last 24h, Last 7d, Last 30d, All Time, Last Reset, and Actions (Delete, Reset Tracking).
+- A table lists every tracked domain, sorted by base domain then subdomain, with columns: Domain, Time Allowed (inline time-limit radios + Save), Time Left, Last 24h, Last 7d, Last 30d, All Time, Full In, and Actions (Delete, Reset Tracking).
 - Time-limit radios offer 1/5/10/30/60 minutes; Save is enabled only when the selection differs from storage, and on save the worker is notified to restart the active timer.
-- Global controls: the reset-interval radios (apply to all domains), "Reset Timers", and "Reset All Tracking".
+- The "Full In" column shows the estimated time until `timeLeft` recharges back to `originalTime` at the current rate (or "Full" when already at the cap), so the user can anticipate when access returns.
+- Global controls: the recharge-rate radios (30s/1m/2m/5m/10m/15m per hour, apply to all domains), "Reset All Timers", and "Reset All Tracking".
 - Pause password panel shows the current code with Copy and Regenerate.
 - The time columns refresh once per second without disturbing in-progress edits. A first-install onboarding banner shows when opened with `?onboarding=true`.
 
@@ -73,7 +92,7 @@ The full-tab configuration and analytics surface.
 A compact browser-action popup — the lightweight everyday entry point — styled to match Options. It loads `storage-utils.js` and `timer-utils.js` like the other surfaces.
 
 - Shows the active tab's hostname, its remaining time, and a progress bar of `timeLeft` against `originalTime`, refreshed about once per second while open.
-- Block this site: shown for a trackable, not-yet-tracked page; adds the hostname to `domainTimers` with a default 5-minute limit and the reset interval inherited from existing domains (falling back to 24h).
+- Block this site: shown for a trackable, not-yet-tracked page; adds the hostname to `domainTimers` with a default 5-minute limit and the recharge rate inherited from existing domains (falling back to 30s/hr).
 - Pause / Resume: password-gated pause and one-click resume (see Pause).
 - Edge states: a not-tracked-yet message with the Block button for trackable pages; an informational message for non-trackable pages (`chrome://`, `chrome-extension://`, `about:`, blank).
 
@@ -103,16 +122,18 @@ Per-domain timer configuration and current state.
 ```jsonc
 {
   "example.com": {
-    "originalTime": 300,            // seconds — the limit the user set
-    "timeLeft": 180,               // seconds — remaining this period
-    "resetInterval": 24,           // hours — how often it resets (1, 8, 24)
-    "lastResetTimestamp": 1691856000000, // ms — when it last reset
+    "originalTime": 300,            // seconds — the budget cap the user set
+    "timeLeft": 180,               // seconds — remaining now
+    "rechargeRate": 30,            // seconds restored per hour away (30, 60, 120, 300, 600, 900)
+    "lastVisitTimestamp": 1691856000000, // ms — last moment this was the active focused tab; the recharge clock
     "expiredMessageLogged": false  // dedupes the post-expiry debug log
   }
 }
 ```
 
-Defaults seeded on first install (all `originalTime`/`timeLeft` 60s, `resetInterval` 24h): `www.reddit.com`, `old.reddit.com`, `twitter.com`, `x.com`, `instagram.com`, `www.instagram.com`.
+Defaults seeded on first install (all `originalTime`/`timeLeft` 60s, `rechargeRate` 30s/hr): `www.reddit.com`, `old.reddit.com`, `twitter.com`, `x.com`, `instagram.com`, `www.instagram.com`.
+
+Migration: timers stored under the old reset schema (`resetInterval` / `lastResetTimestamp`) are read forgivingly — a missing `rechargeRate` defaults to 30, and `lastVisitTimestamp` falls back to the old `lastResetTimestamp` (or the current time). No data wipe is needed.
 
 ### `timeTracking`
 

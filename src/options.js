@@ -237,19 +237,19 @@ document.getElementById("siteForm").addEventListener("submit", async (event) => 
 
   // Get selected radio button values
   const timeAllowedRadio = document.querySelector('input[name="timeAllowed"]:checked');
-  const globalResetIntervalRadio = document.querySelector(
-    'input[name="globalResetInterval"]:checked'
+  const globalRechargeRateRadio = document.querySelector(
+    'input[name="globalRechargeRate"]:checked'
   );
 
   // Time is already in minutes from radio button values and converted to seconds for storage.
   const originalTimeInMinutes = timeAllowedRadio
     ? parsePositiveInteger(timeAllowedRadio.value)
     : null;
-  const resetInterval = globalResetIntervalRadio
-    ? parsePositiveInteger(globalResetIntervalRadio.value)
-    : 24; // Default to 24 hours
+  const rechargeRate = globalRechargeRateRadio
+    ? parsePositiveInteger(globalRechargeRateRadio.value)
+    : 30; // Default to 30s restored per hour away
 
-  if (originalTimeInMinutes === null || resetInterval === null) {
+  if (originalTimeInMinutes === null || rechargeRate === null) {
     return;
   }
 
@@ -273,8 +273,8 @@ document.getElementById("siteForm").addEventListener("submit", async (event) => 
       domainTimers[domain] = {
         originalTime: originalTimeInSeconds,
         timeLeft: originalTimeInSeconds, // Set timeLeft to originalTime
-        resetInterval: resetInterval,
-        lastResetTimestamp: Date.now(),
+        rechargeRate: rechargeRate,
+        lastVisitTimestamp: Date.now(),
         expiredMessageLogged: false,
       };
 
@@ -450,9 +450,23 @@ async function renderDomainList() {
     // Iterate over the sorted domain timers and create a table row for each one.
     for (const [
       domain,
-      { originalTime, timeLeft, resetInterval, lastResetTimestamp },
+      { originalTime, timeLeft, rechargeRate, lastVisitTimestamp },
     ] of sortedDomains) {
       const row = document.createElement("tr");
+
+      // Project recharge for display only. The background worker is the sole
+      // writer of timeLeft; here we just reflect the refilling budget so away
+      // domains don't look frozen between worker passes.
+      const displayTimer =
+        TimerUtils && TimerUtils.applyRecharge
+          ? TimerUtils.applyRecharge(
+              { originalTime, timeLeft, rechargeRate, lastVisitTimestamp },
+              Date.now()
+            )
+          : { originalTime, timeLeft, rechargeRate };
+      const displayTimeLeft = Number.isFinite(displayTimer.timeLeft)
+        ? displayTimer.timeLeft
+        : timeLeft;
 
       // Create cells
       const domainCell = document.createElement("td");
@@ -523,7 +537,7 @@ async function renderDomainList() {
 
       // Time Left cell (display only)
       const timeLeftCell = document.createElement("td");
-      timeLeftCell.textContent = formatTime(timeLeft);
+      timeLeftCell.textContent = formatTime(displayTimeLeft);
 
       // Time tracking cells (Last 24h, Last 7d, Last 30d, All Time)
       const last24hCell = document.createElement("td");
@@ -550,9 +564,13 @@ async function renderDomainList() {
       allTimeCell.setAttribute("data-domain", domain);
       allTimeCell.setAttribute("data-period", "alltime");
 
-      // Last Reset cell
-      const lastResetCell = document.createElement("td");
-      lastResetCell.textContent = new Date(lastResetTimestamp).toLocaleString();
+      // Full In cell — estimated time until the budget recharges to its cap.
+      const fullInCell = document.createElement("td");
+      const secondsUntilFull =
+        TimerUtils && TimerUtils.estimateSecondsUntilFull
+          ? TimerUtils.estimateSecondsUntilFull(displayTimer)
+          : 0;
+      fullInCell.textContent = secondsUntilFull > 0 ? formatTimeTracking(secondsUntilFull) : "Full";
 
       // Actions cell (delete and reset tracking buttons)
       const actionsCell = document.createElement("td");
@@ -583,7 +601,7 @@ async function renderDomainList() {
       row.appendChild(last7dCell);
       row.appendChild(last30dCell);
       row.appendChild(allTimeCell);
-      row.appendChild(lastResetCell);
+      row.appendChild(fullInCell);
       row.appendChild(actionsCell);
 
       // Restore save button state if it was previously enabled
@@ -657,7 +675,7 @@ async function updateTimeTrackingCells(domain) {
 document.getElementById("domainListBody").addEventListener("click", async (event) => {
   const target = event.target;
 
-  // Skip click-to-edit for radio button columns (originalTime and resetInterval)
+  // Skip click-to-edit for radio button columns (originalTime and recharge rate)
   // Radio buttons are now always visible in these columns
 
   // Logic to handle the save button click.
@@ -669,17 +687,17 @@ document.getElementById("domainListBody").addEventListener("click", async (event
     const originalTimeRadio = row.querySelector(
       '[data-field="originalTime"] input[type="radio"]:checked'
     );
-    const globalResetIntervalRadio = document.querySelector(
-      'input[name="globalResetInterval"]:checked'
+    const globalRechargeRateRadio = document.querySelector(
+      'input[name="globalRechargeRate"]:checked'
     );
 
     if (originalTimeRadio) {
       const originalTimeInMinutes = parsePositiveInteger(originalTimeRadio.value);
-      const resetInterval = globalResetIntervalRadio
-        ? parsePositiveInteger(globalResetIntervalRadio.value)
-        : 24;
+      const rechargeRate = globalRechargeRateRadio
+        ? parsePositiveInteger(globalRechargeRateRadio.value)
+        : 30;
 
-      if (originalTimeInMinutes !== null && resetInterval !== null) {
+      if (originalTimeInMinutes !== null && rechargeRate !== null) {
         const originalTimeInSeconds = originalTimeInMinutes * 60;
 
         try {
@@ -693,7 +711,7 @@ document.getElementById("domainListBody").addEventListener("click", async (event
               const result = TimerUtils.applyTimerSettingsChange(
                 domainTimers[domainToSave],
                 originalTimeInSeconds,
-                resetInterval
+                rechargeRate
               );
               domainTimers[domainToSave] = result.timerData;
               timeChanged = result.wasReset;
@@ -706,11 +724,11 @@ document.getElementById("domainListBody").addEventListener("click", async (event
               const needsReset = timeChanged || currentTimeLeft > originalTimeInSeconds;
 
               domainTimers[domainToSave].originalTime = originalTimeInSeconds;
-              domainTimers[domainToSave].resetInterval = resetInterval;
+              domainTimers[domainToSave].rechargeRate = rechargeRate;
 
               if (needsReset) {
                 domainTimers[domainToSave].timeLeft = originalTimeInSeconds;
-                domainTimers[domainToSave].lastResetTimestamp = Date.now();
+                domainTimers[domainToSave].lastVisitTimestamp = Date.now();
                 domainTimers[domainToSave].expiredMessageLogged = false;
                 timeChanged = true;
               }
@@ -805,7 +823,7 @@ document.getElementById("resetTimersButton").addEventListener("click", async (ev
       }
 
       timerData.timeLeft = timerData.originalTime;
-      timerData.lastResetTimestamp = currentTime;
+      timerData.lastVisitTimestamp = currentTime;
       timerData.expiredMessageLogged = false;
       domainTimers[domain] = timerData;
     }
@@ -850,29 +868,29 @@ document.getElementById("resetAllTrackingButton").addEventListener("click", asyn
   } catch (error) {}
 });
 
-// Add event listener for global reset interval changes
-document.getElementById("globalResetIntervalGroup").addEventListener("change", async () => {
-  const globalResetIntervalRadio = document.querySelector(
-    'input[name="globalResetInterval"]:checked'
+// Add event listener for global recharge rate changes
+document.getElementById("globalRechargeRateGroup").addEventListener("change", async () => {
+  const globalRechargeRateRadio = document.querySelector(
+    'input[name="globalRechargeRate"]:checked'
   );
-  if (globalResetIntervalRadio) {
-    const newResetInterval = parsePositiveInteger(globalResetIntervalRadio.value);
-    if (newResetInterval === null) {
+  if (globalRechargeRateRadio) {
+    const newRechargeRate = parsePositiveInteger(globalRechargeRateRadio.value);
+    if (newRechargeRate === null) {
       return;
     }
 
     try {
-      // Update all existing domains with the new reset interval
+      // Update all existing domains with the new recharge rate
       const storedDomainTimers = await StorageUtils.getFromStorage("domainTimers");
       const domainTimers = isPlainRecord(storedDomainTimers) ? storedDomainTimers : {};
 
-      // Update reset interval for all domains
+      // Update recharge rate for all domains
       for (const domain in domainTimers) {
         if (!isPlainRecord(domainTimers[domain])) {
           continue;
         }
 
-        domainTimers[domain].resetInterval = newResetInterval;
+        domainTimers[domain].rechargeRate = newRechargeRate;
       }
 
       await StorageUtils.setToStorage({ domainTimers });
@@ -881,16 +899,16 @@ document.getElementById("globalResetIntervalGroup").addEventListener("change", a
   }
 });
 
-// Load and set the current global reset interval when page loads
-async function initializeGlobalResetInterval() {
+// Load and set the current global recharge rate when page loads
+async function initializeGlobalRechargeRate() {
   try {
     const domainTimers = (await StorageUtils.getFromStorage("domainTimers")) || {};
     const domains = Object.keys(domainTimers);
 
     if (domains.length > 0) {
-      // Use the reset interval from the first domain (they should all be the same now)
-      const currentResetInterval = domainTimers[domains[0]].resetInterval || 24;
-      const radioToSelect = document.getElementById(`globalReset${currentResetInterval}`);
+      // Use the recharge rate from the first domain (they should all be the same now)
+      const currentRechargeRate = domainTimers[domains[0]].rechargeRate || 30;
+      const radioToSelect = document.getElementById(`globalRecharge${currentRechargeRate}`);
       if (radioToSelect) {
         radioToSelect.checked = true;
       }
@@ -977,7 +995,7 @@ function handleOnboarding() {
 }
 
 // Initialize when page loads
-initializeGlobalResetInterval();
+initializeGlobalRechargeRate();
 loadPausePassword();
 handleOnboarding();
 
@@ -1005,18 +1023,28 @@ async function updateTimeDisplays() {
       const domain = saveButton?.dataset.domain;
 
       if (domain && domainTimers[domain]) {
-        const { timeLeft, lastResetTimestamp } = domainTimers[domain];
+        // Project recharge for display only (read-only; worker is the writer).
+        const displayTimer =
+          TimerUtils && TimerUtils.applyRecharge
+            ? TimerUtils.applyRecharge(domainTimers[domain], Date.now())
+            : domainTimers[domain];
+        const displayTimeLeft = Number.isFinite(displayTimer.timeLeft) ? displayTimer.timeLeft : 0;
 
         // Update time left (3rd column)
         const timeLeftCell = row.cells[2];
         if (timeLeftCell) {
-          timeLeftCell.textContent = formatTime(timeLeft);
+          timeLeftCell.textContent = formatTime(displayTimeLeft);
         }
 
-        // Update last reset (8th column) - corrected column index
-        const lastResetCell = row.cells[7];
-        if (lastResetCell) {
-          lastResetCell.textContent = new Date(lastResetTimestamp).toLocaleString();
+        // Update Full In (8th column)
+        const fullInCell = row.cells[7];
+        if (fullInCell) {
+          const secondsUntilFull =
+            TimerUtils && TimerUtils.estimateSecondsUntilFull
+              ? TimerUtils.estimateSecondsUntilFull(displayTimer)
+              : 0;
+          fullInCell.textContent =
+            secondsUntilFull > 0 ? formatTimeTracking(secondsUntilFull) : "Full";
         }
 
         // Update time tracking columns (4th-7th columns) to include current session time

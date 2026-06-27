@@ -5,11 +5,21 @@ A Chrome extension (Manifest V3) for time-based website blocking with usage anal
 ## Features
 
 - Per-domain time limits with an automatic countdown while you're on a tracked site.
-- Page blocking when a domain's time runs out, with configurable reset intervals (1h / 8h / 24h).
+- Page blocking when a domain's time runs out, with a budget that recharges over time while you're away from the site (configurable rate, from 30s to 15m restored per hour).
 - On-page time-left overlay: a small, read-only pill showing the remaining time and a progress bar while you browse a tracked site.
 - Toolbar popup for at-a-glance status, one-click "block this site", and a password-gated pause.
 - Usage analytics: actual time spent per domain over rolling 24h / 7d / 30d / all-time windows, with idle detection.
 - All data is stored locally in `chrome.storage.local` — no servers, no accounts.
+
+## Screenshots
+
+The on-page time-left overlay while browsing a tracked site:
+
+![Time-left overlay pill on Reddit showing remaining time](reddit_example.png)
+
+The options page — recharge rate, per-site limits, and usage analytics:
+
+![Extension options page with recharge-rate settings and the tracked-sites table](extension_options.png)
 
 ## Install (development)
 

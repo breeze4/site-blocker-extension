@@ -168,6 +168,13 @@
       color: white;
       font-weight: bold;
     }
+    .radio-note {
+      display: block;
+      font-size: 11px;
+      font-weight: normal;
+      opacity: 0.7;
+      margin-top: 2px;
+    }
     .table-radio-group {
       display: flex;
       flex-wrap: wrap;
@@ -542,27 +549,27 @@
     <div class="radio-group" id="globalRechargeRateGroup" role="radiogroup" aria-labelledby="global-recharge-help">
       <div class="radio-option">
         <input type="radio" id="globalRecharge30" name="globalRechargeRate" value="30" checked aria-describedby="global-recharge-help">
-        <label for="globalRecharge30">30s / hr</label>
+        <label for="globalRecharge30">30s / hr<span class="radio-note">+1s every 2m</span></label>
       </div>
       <div class="radio-option">
         <input type="radio" id="globalRecharge60" name="globalRechargeRate" value="60" aria-describedby="global-recharge-help">
-        <label for="globalRecharge60">1m / hr</label>
+        <label for="globalRecharge60">1m / hr<span class="radio-note">+1s every 1m</span></label>
       </div>
       <div class="radio-option">
         <input type="radio" id="globalRecharge120" name="globalRechargeRate" value="120" aria-describedby="global-recharge-help">
-        <label for="globalRecharge120">2m / hr</label>
+        <label for="globalRecharge120">2m / hr<span class="radio-note">+1s every 30s</span></label>
       </div>
       <div class="radio-option">
         <input type="radio" id="globalRecharge300" name="globalRechargeRate" value="300" aria-describedby="global-recharge-help">
-        <label for="globalRecharge300">5m / hr</label>
+        <label for="globalRecharge300">5m / hr<span class="radio-note">+1s every 12s</span></label>
       </div>
       <div class="radio-option">
         <input type="radio" id="globalRecharge600" name="globalRechargeRate" value="600" aria-describedby="global-recharge-help">
-        <label for="globalRecharge600">10m / hr</label>
+        <label for="globalRecharge600">10m / hr<span class="radio-note">+1s every 6s</span></label>
       </div>
       <div class="radio-option">
         <input type="radio" id="globalRecharge900" name="globalRechargeRate" value="900" aria-describedby="global-recharge-help">
-        <label for="globalRecharge900">15m / hr</label>
+        <label for="globalRecharge900">15m / hr<span class="radio-note">+1s every 4s</span></label>
       </div>
     </div>
     <div id="global-recharge-help" class="sr-only">Choose how fast a site's time budget refills while you are away from it</div>

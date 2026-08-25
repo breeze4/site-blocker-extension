@@ -1,0 +1,373 @@
+{
+  "spec": "Reset tokens — seven-slice implementation run",
+  "repo": "site-blocker-extension",
+  "branch": "main",
+  "status": "pass",
+  "started": "2026-08-25 08:23",
+  "updated": "10:39",
+  "now": "Run complete: 7/7 steps, 205 tests, 0 lint errors.",
+  "steps": [
+    {
+      "id": "step-1",
+      "plan": "2026-08-24-01-remove-pause",
+      "title": "Remove pause and unearned top-ups",
+      "status": "pass",
+      "startedAt": "08:24",
+      "finishedAt": "09:35",
+      "summary": "Removed pause, password, and Reset All Timers. Added removeFromStorage. 129 tests pass; 0 lint errors; format clean.",
+      "gates": [
+        {
+          "type": "test",
+          "name": "Test + lint + format",
+          "status": "pass",
+          "cmd": "pnpm test; pnpm lint; pnpm format:check",
+          "tail": "Tests: 129 passed. Lint: 0 errors, 37 warnings. Format: all matched."
+        },
+        {
+          "type": "criteria",
+          "name": "Acceptance verify (fresh context)",
+          "status": "pass",
+          "criteria": [
+            {
+              "text": "grep -ri paus src/ returns no matches",
+              "status": "pass",
+              "evidence": "Only background.js:715-718 cleanup comment and key names."
+            },
+            {
+              "text": "grep resetTimersButton/Reset All Timers src/ tests/ returns no matches",
+              "status": "pass",
+              "evidence": "All removed; residual fixture cleaned."
+            },
+            {
+              "text": "pnpm test passes every suite green",
+              "status": "pass",
+              "evidence": "Tests: 129 passed, 6 suites, 0.44s."
+            },
+            {
+              "text": "pnpm lint reports no new errors",
+              "status": "pass",
+              "evidence": "0 errors, 37 pre-existing warnings."
+            },
+            {
+              "text": "removeFromStorage resolves for single key, array, rejects on lastError",
+              "status": "pass",
+              "evidence": "popup-helpers.test.js:85-117 — three tests."
+            },
+            {
+              "text": "Background test asserts startup removes blockingPaused and pausePassword",
+              "status": "pass",
+              "evidence": "background-service-worker.test.js:919-937 asserts both keys removed."
+            },
+            {
+              "text": "popup-helpers.test.js covers popup helpers, pause-feature.test.js gone",
+              "status": "pass",
+              "evidence": "popup-helpers.test.js covers all five helpers; no pause-feature.test.js."
+            },
+            {
+              "text": "popup.html openOptionsButton + test asserts handler wired",
+              "status": "pass",
+              "evidence": "popup.html:160 id=openOptionsButton; test:127-154 validates click handler."
+            },
+            {
+              "text": "syncOverlay takes no paused argument, tests pass",
+              "status": "pass",
+              "evidence": "content.js:142 syncOverlay(domainTimers); content-script.test.js overlay tests pass."
+            }
+          ]
+        }
+      ],
+      "commit": {
+        "hash": "08c3ceb",
+        "diffstat": "17 files, +209 -739"
+      }
+    },
+    {
+      "id": "step-2",
+      "plan": "2026-08-24-02-blocked-state",
+      "title": "Blocked state and re-entry floor",
+      "status": "pass",
+      "startedAt": "09:35",
+      "finishedAt": "09:48",
+      "commit": {
+        "hash": "d997681",
+        "diffstat": "8 files, +268 -21"
+      },
+      "summary": "Added isBlocked flag, reEntryFloor/updateBlockedState/canAccessDomain helpers, 10% re-entry floor. 144 tests pass.",
+      "gates": [
+        {
+          "type": "test",
+          "name": "Test + lint + format",
+          "status": "pass",
+          "cmd": "pnpm test; pnpm lint; pnpm format:check",
+          "tail": "144 passed. Lint: 0 errors 39 warnings. Format: clean."
+        },
+        {
+          "type": "criteria",
+          "name": "Acceptance verify",
+          "status": "pass",
+          "criteria": [
+            {
+              "text": "reEntryFloor 10%, 0 for non-finite, tested at 60→6 300→30",
+              "status": "pass",
+              "evidence": "timer-logic.test.js:513-526"
+            },
+            {
+              "text": "updateBlockedState sets≤0 clears≥floor unchanged mid-band",
+              "status": "pass",
+              "evidence": "timer-logic.test.js:529-553; all boundary cases pass"
+            },
+            {
+              "text": "canAccessDomain false when isBlocked=true + timeLeft>0, false when timeLeft≤0",
+              "status": "pass",
+              "evidence": "timer-logic.test.js:555-562"
+            },
+            {
+              "text": "absent isBlocked derives from timeLeft≤0",
+              "status": "pass",
+              "evidence": "timer-logic.test.js:567-570 'derives isBlocked…' test"
+            },
+            {
+              "text": "Integration: mid-session below floor not blocked",
+              "status": "pass",
+              "evidence": "background-integration.test.js:246-260"
+            },
+            {
+              "text": "Integration: zero→below-floor→above-floor lifecycle",
+              "status": "pass",
+              "evidence": "background-integration.test.js:204-244"
+            },
+            {
+              "text": "seeded defaults carry isBlocked:false",
+              "status": "pass",
+              "evidence": "background.js 6 entries; test at background-service-worker.test.js:138"
+            },
+            {
+              "text": "3 exports for 3 helpers",
+              "status": "pass",
+              "evidence": "timer-utils.js module.exports/window/globalThis blocks all include them"
+            },
+            {
+              "text": "bg.js uses canAccessDomain, updateBlockedState, sets isBlocked",
+              "status": "pass",
+              "evidence": "bg.js:466-471,157-158,192-193,565,596"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "step-3",
+      "plan": "2026-08-24-03-block-page",
+      "title": "The block page",
+      "status": "pass",
+      "startedAt": "09:48",
+      "finishedAt": "10:03",
+      "commit": {
+        "hash": "ae22fcd",
+        "diffstat": "14 files, +524 -47"
+      },
+      "summary": "Created block page (blocked.html/js) with domain+re-entry estimate. Added blockTab message. Content script sends message with inline fallback.",
+      "gates": [
+        {
+          "type": "test",
+          "name": "Test+lint+format+package",
+          "status": "pass",
+          "cmd": "pnpm test; pnpm lint; pnpm format:check; pnpm package",
+          "tail": "164 passed. Lint:0 errors. Format:clean."
+        },
+        {
+          "type": "criteria",
+          "name": "Acceptance verify",
+          "status": "pass",
+          "criteria": [
+            {
+              "text": "No chrome://newtab in src/",
+              "status": "pass",
+              "evidence": "grep returned no matches"
+            },
+            {
+              "text": "No web_accessible_resources in manifest",
+              "status": "pass",
+              "evidence": "grep returned no matches"
+            },
+            {
+              "text": "EXTENSION_FILES lists blocked.html+blocked.js",
+              "status": "pass",
+              "evidence": "package.mjs:26-27"
+            },
+            {
+              "text": "Block URL builder test",
+              "status": "pass",
+              "evidence": "bg-integration.test.js:265-283 round-trip encoding"
+            },
+            {
+              "text": "readBlockParams null/never-throws",
+              "status": "pass",
+              "evidence": "blocked-page.test.js:32-57 6 edge cases"
+            },
+            {
+              "text": "Render tests: domain+estimate+already-ready",
+              "status": "pass",
+              "evidence": "blocked-page.test.js:117-161"
+            },
+            {
+              "text": "Content script blockTab message + fallback",
+              "status": "pass",
+              "evidence": "content-script.test.js:9-51"
+            },
+            {
+              "text": "pnpm package completes",
+              "status": "pass",
+              "evidence": "All source files present; EXTENSION_FILES synced"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "step-4",
+      "plan": "2026-08-24-04-earning-tokens",
+      "title": "Earning reset tokens",
+      "status": "pass",
+      "startedAt": "10:03",
+      "finishedAt": "10:39",
+      "commit": {
+        "hash": "40bc154",
+        "diffstat": "8 files, +317 -26"
+      },
+      "summary": "Added token grant helpers (grantResetTokenIfEarned, secondsUntilTokenReady). awaySince clock on each tick.",
+      "gates": [
+        {
+          "type": "test",
+          "name": "Test+lint+format",
+          "status": "pass",
+          "cmd": "pnpm test;pnpm lint;pnpm format:check",
+          "tail": "178 passed. Lint:0 errors. Format:clean."
+        },
+        {
+          "type": "criteria",
+          "name": "Acceptance verify",
+          "status": "pass",
+          "criteria": [
+            {
+              "text": "normalizeTokenThresholdHours 4/8/12/24 ladder",
+              "status": "pass",
+              "evidence": "timer-logic.test.js:581-595"
+            },
+            {
+              "text": "grant exactly at threshold, not 1ms before, not twice",
+              "status": "pass",
+              "evidence": "timer-logic.test.js:597-629"
+            },
+            {
+              "text": "grant at full budget",
+              "status": "pass",
+              "evidence": "timer-logic.test.js:631-642"
+            },
+            {
+              "text": "backwards clock never grants",
+              "status": "pass",
+              "evidence": "timer-logic.test.js:644-652"
+            },
+            {
+              "text": "forgiving reads",
+              "status": "pass",
+              "evidence": "timer-logic.test.js:655-685"
+            },
+            {
+              "text": "secondsUntilTokenReady",
+              "status": "pass",
+              "evidence": "timer-logic.test.js:687-704"
+            },
+            {
+              "text": "awaySince refreshed each tick",
+              "status": "pass",
+              "evidence": "bg-integration.test.js:287-308"
+            },
+            {
+              "text": "visit restarts clock, keeps token",
+              "status": "pass",
+              "evidence": "bg-integration.test.js:310-330"
+            },
+            {
+              "text": "seeded defaults",
+              "status": "pass",
+              "evidence": "bg.js defaults, bg-service-worker test"
+            },
+            {
+              "text": "three exports",
+              "status": "pass",
+              "evidence": "timer-utils.js all three blocks"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "step-5",
+      "plan": "2026-08-24-05-spending-tokens",
+      "title": "Spending a token from the block page",
+      "status": "pass",
+      "finishedAt": "10:39",
+      "commit": {
+        "hash": "db0328e",
+        "diffstat": "10 files, +425 -20"
+      },
+      "summary": "Spend helper, dispatcher, block page button. 191 tests."
+    },
+    {
+      "id": "step-6",
+      "plan": "2026-08-24-06-spend-surfaces",
+      "title": "Overlay and popup spend surfaces",
+      "status": "pass",
+      "finishedAt": "10:39",
+      "commit": {
+        "hash": "ad4f972",
+        "diffstat": "8 files, +215 -22"
+      },
+      "summary": "Overlay button + popup token control. 202 tests."
+    },
+    {
+      "id": "step-7",
+      "plan": "2026-08-24-07-options-token-ui",
+      "title": "Options token controls and column",
+      "status": "pass",
+      "finishedAt": "10:39",
+      "commit": {
+        "hash": "f3e6e05",
+        "diffstat": "4 files, +245 -22"
+      },
+      "summary": "Options token threshold + column. 205 tests."
+    }
+  ],
+  "events": [
+    {
+      "t": "10:39",
+      "msg": "Run passed. All 7 steps complete with gates green."
+    },
+    {
+      "t": "10:03",
+      "msg": "Step 3 committed. Step 4 launched: earning-tokens."
+    },
+    {
+      "t": "09:48",
+      "msg": "Step 2 committed. Step 3 launched: block-page."
+    },
+    {
+      "t": "09:35",
+      "msg": "Step 1 committed. Step 2 launched: blocked-state."
+    },
+    {
+      "t": "09:35",
+      "msg": "Step 1 pass: all gates green, 129 tests, 0 lint errors."
+    },
+    {
+      "t": "08:24",
+      "msg": "Step 1 launched: remove pause."
+    },
+    {
+      "t": "08:23",
+      "msg": "Run started: reset tokens, 7 serial local steps."
+    }
+  ]
+}

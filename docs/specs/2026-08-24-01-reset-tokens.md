@@ -407,9 +407,12 @@ Reading token state, in the overlay, popup, and Options page:
   without nagging during browsing.
 - Spend tracking: recorded per day and all time — the user wants to see whether
   they are compromising their own discipline over time.
-- Manifest: unchanged — every navigation to the block page is extension-initiated,
-  so the page needs no `web_accessible_resources` entry, which also prevents
-  websites from fingerprinting the extension.
+- Manifest: one change, and no new permission — the content script list gains the
+  pure timer helpers ahead of the content script, so the overlay reuses the tested
+  visibility rule instead of carrying a duplicate copy.
+- Block page exposure: none — every navigation to the block page is
+  extension-initiated, so the page needs no `web_accessible_resources` entry,
+  which also prevents websites from fingerprinting the extension.
 
 ## Judgment calls
 
@@ -469,6 +472,7 @@ still not intercepting page clicks.
 - Changes to time recharge itself, to the rate ladder, to the tracking model, or
   to the rolling analytics windows.
 - Manifest permission changes, `web_accessible_resources`, cloud sync, and
-  subdomain grouping.
+  subdomain grouping. The only manifest edit is adding the pure timer helpers to
+  the content script list.
 - Restyling the Options page beyond grouping recharge with the token threshold and
   adding the new column.

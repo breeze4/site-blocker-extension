@@ -36,25 +36,25 @@ AFK
 
 ## Acceptance criteria
 
-- [ ] `reEntryFloor` returns 10% of `originalTime`, returns 0 for a missing or
+- [x] `reEntryFloor` returns 10% of `originalTime`, returns 0 for a missing or
       non-finite cap, and is unit-tested at a 60-second cap (6) and a 300-second
       cap (30).
-- [ ] `updateBlockedState` sets `isBlocked` when `timeLeft` is at or below zero,
+- [x] `updateBlockedState` sets `isBlocked` when `timeLeft` is at or below zero,
       clears it when `timeLeft` is at or above the floor, and leaves it unchanged
       between those bounds. Unit tests cover 9% blocked, exactly 10% cleared, and
       an unchanged mid-band value.
-- [ ] `canAccessDomain` returns false when `isBlocked` is true even with positive
+- [x] `canAccessDomain` returns false when `isBlocked` is true even with positive
       `timeLeft`, and false when `timeLeft` is zero or negative.
-- [ ] A unit test asserts a record with `isBlocked` absent derives the flag from
+- [x] A unit test asserts a record with `isBlocked` absent derives the flag from
       `timeLeft <= 0`.
-- [ ] A background integration test asserts a running session with `timeLeft`
+- [x] A background integration test asserts a running session with `timeLeft`
       below the floor is not blocked, proving the floor never interrupts an
       in-progress visit.
-- [ ] A background integration test drives a timer to zero, confirms `isBlocked`
+- [x] A background integration test drives a timer to zero, confirms `isBlocked`
       is set, credits recharge below the floor and confirms the domain is still
       denied, then credits past the floor and confirms it is allowed.
-- [ ] The seeded default domains carry `isBlocked: false`.
-- [ ] `pnpm test` passes and `pnpm lint` reports no new errors.
+- [x] The seeded default domains carry `isBlocked: false`.
+- [x] `pnpm test` passes and `pnpm lint` reports no new errors.
 
 ## Owns
 
@@ -100,20 +100,20 @@ AFK
 
 ## Tasks
 
-- [ ] Add `reEntryFloor`, `updateBlockedState`, and `canAccessDomain` as pure
+- [x] Add `reEntryFloor`, `updateBlockedState`, and `canAccessDomain` as pure
       helpers with forgiving reads, and export them three ways.
-- [ ] Add unit tests for each helper, covering both boundaries of the floor and
+- [x] Add unit tests for each helper, covering both boundaries of the floor and
       the mid-band no-op.
-- [ ] Set `isBlocked` in the countdown's expiry branch, before the session stop
+- [x] Set `isBlocked` in the countdown's expiry branch, before the session stop
       and the redirect.
-- [ ] Call `updateBlockedState` for every domain inside
+- [x] Call `updateBlockedState` for every domain inside
       `applyRechargeToAllTimers`, after crediting recharge.
-- [ ] Replace the access test in `handleTimerForTab` with `canAccessDomain`.
-- [ ] Add `isBlocked: false` to the seeded defaults.
-- [ ] Add the background integration coverage for the lifecycle and the
+- [x] Replace the access test in `handleTimerForTab` with `canAccessDomain`.
+- [x] Add `isBlocked: false` to the seeded defaults.
+- [x] Add the background integration coverage for the lifecycle and the
       mid-session case.
-- [ ] Update `docs/SPEC.md`.
-- [ ] Run `pnpm test`, `pnpm lint`, and `pnpm format`.
+- [x] Update `docs/SPEC.md`.
+- [x] Run `pnpm test`, `pnpm lint`, and `pnpm format`.
 
 ## Implementation notes
 

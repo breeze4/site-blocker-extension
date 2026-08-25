@@ -37,7 +37,7 @@ Per-domain timers live in `chrome.storage.local` under `domainTimers` (see Stora
 - The worker handles a tab on activation, navigation completion, and window-focus changes (`onActivated`, `onUpdated`, `onFocusChanged`). Concurrent handling is guarded so only one timer runs at a time.
 - On each pass it credits any earned recharge to away domains (see Recharge over time), then, if the active tab's hostname is a tracked domain with positive time left, starts a `setInterval` that decrements `timeLeft` by one second.
 - The countdown only runs while the browser is focused and the active tab is still on that domain. Switching tabs/domains, losing window focus stops it.
-- When `timeLeft` reaches zero, the worker stops the timer and redirects the active tab to `chrome://newtab`. Re-navigating to an expired domain redirects again.
+- When `timeLeft` reaches zero, the worker sets `isBlocked` to true and redirects the active tab to `chrome://newtab`. A blocked domain stays blocked until recharge brings the budget to the 10% re-entry floor (e.g. 6s for a 60s cap); below the floor, even a positive `timeLeft` is denied. A session already in progress is never interrupted by the floor.
 - `content.js` independently blocks an already-expired page on load by replacing the page body with an "Access Blocked" message (covers a page that was open before expiry, or reopened while out of time).
 
 ### Recharge over time
@@ -120,7 +120,8 @@ Per-domain timer configuration and current state.
     "timeLeft": 180,               // seconds — remaining now
     "rechargeRate": 30,            // seconds restored per hour away (30, 60, 120, 300, 600, 900)
     "lastVisitTimestamp": 1691856000000, // ms — last moment this was the active focused tab; the recharge clock
-    "expiredMessageLogged": false  // dedupes the post-expiry debug log
+    "expiredMessageLogged": false, // dedupes the post-expiry debug log
+    "isBlocked": false             // set true at countdown zero; cleared when recharge reaches 10% of cap
   }
 }
 ```

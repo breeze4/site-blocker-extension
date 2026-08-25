@@ -135,6 +135,7 @@ describe("background service worker session accounting", () => {
       timeLeft: 60,
       rechargeRate: 30,
       expiredMessageLogged: false,
+      isBlocked: false,
     });
     expect(finalStorage.domainTimers["www.reddit.com"]).toEqual(
       timerWrite.domainTimers["www.reddit.com"]

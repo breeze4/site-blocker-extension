@@ -11,6 +11,7 @@ const defaultDomainTimers = {
     rechargeRate: 30,
     lastVisitTimestamp: Date.now(),
     expiredMessageLogged: false,
+    isBlocked: false,
   },
   "old.reddit.com": {
     originalTime: 60,
@@ -18,6 +19,7 @@ const defaultDomainTimers = {
     rechargeRate: 30,
     lastVisitTimestamp: Date.now(),
     expiredMessageLogged: false,
+    isBlocked: false,
   },
   "twitter.com": {
     originalTime: 60,
@@ -25,6 +27,7 @@ const defaultDomainTimers = {
     rechargeRate: 30,
     lastVisitTimestamp: Date.now(),
     expiredMessageLogged: false,
+    isBlocked: false,
   },
   "x.com": {
     originalTime: 60,
@@ -32,6 +35,7 @@ const defaultDomainTimers = {
     rechargeRate: 30,
     lastVisitTimestamp: Date.now(),
     expiredMessageLogged: false,
+    isBlocked: false,
   },
   "instagram.com": {
     originalTime: 60,
@@ -39,6 +43,7 @@ const defaultDomainTimers = {
     rechargeRate: 30,
     lastVisitTimestamp: Date.now(),
     expiredMessageLogged: false,
+    isBlocked: false,
   },
   "www.instagram.com": {
     originalTime: 60,
@@ -46,6 +51,7 @@ const defaultDomainTimers = {
     rechargeRate: 30,
     lastVisitTimestamp: Date.now(),
     expiredMessageLogged: false,
+    isBlocked: false,
   },
 };
 
@@ -147,6 +153,10 @@ async function applyRechargeToAllTimers(domainTimers) {
     // Use TimerUtils function if available (should be available after importScripts)
     if (typeof TimerUtils !== "undefined" && TimerUtils.applyRecharge) {
       domainTimers[domain] = TimerUtils.applyRecharge(timerData, currentTime);
+      // Update the blocked-state flag after crediting recharge.
+      if (TimerUtils.updateBlockedState) {
+        domainTimers[domain] = TimerUtils.updateBlockedState(domainTimers[domain]);
+      }
     } else {
       // Fallback to inline recharge logic
       const originalTime =
@@ -178,6 +188,10 @@ async function applyRechargeToAllTimers(domainTimers) {
         }
       }
       domainTimers[domain] = timerData;
+      // Update the blocked-state flag after crediting recharge.
+      if (typeof TimerUtils !== "undefined" && TimerUtils.updateBlockedState) {
+        domainTimers[domain] = TimerUtils.updateBlockedState(timerData);
+      }
     }
   }
   return domainTimers;
@@ -459,7 +473,15 @@ async function handleTimerForTab(tab) {
       return;
     }
 
-    if (Number.isFinite(domainTimer.timeLeft) && domainTimer.timeLeft > 0) {
+    // Use the blocked-state predicate: isBlocked can deny even with
+    // positive timeLeft (re-entry during the mid-band between zero and the
+    // floor), and a missing isBlocked flag derives from timeLeft <= 0.
+    const hasAccess =
+      typeof TimerUtils !== "undefined" && TimerUtils.canAccessDomain
+        ? TimerUtils.canAccessDomain(domainTimer)
+        : Number.isFinite(domainTimer.timeLeft) && domainTimer.timeLeft > 0;
+
+    if (hasAccess) {
       // Record session start timestamp for time tracking
       const timeTracking = (await getTimeTracking()) || {};
       if (timeTracking[domain]) {
@@ -550,6 +572,9 @@ async function handleTimerForTab(tab) {
         await saveDomainTimers(currentTimers);
 
         if (currentTimers[domain].timeLeft <= 0) {
+          // Set the blocked flag so the domain stays denied until recharge
+          // brings the budget back to the re-entry floor.
+          currentTimers[domain].isBlocked = true;
           if (currentTimers[domain].expiredMessageLogged) {
             debugLog("Timer expired for domain:", domain);
           }
@@ -580,6 +605,7 @@ async function handleTimerForTab(tab) {
       if (!domainTimer.expiredMessageLogged) {
         debugLog("Timer already expired for domain:", domain, "blocking navigation");
         domainTimers[domain].expiredMessageLogged = true;
+        domainTimers[domain].isBlocked = true;
         await saveDomainTimers(domainTimers);
       }
       // If time has already expired, block navigation.

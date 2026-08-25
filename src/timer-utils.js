@@ -270,6 +270,65 @@ function formatTimeTracking(totalSeconds) {
   }
 }
 
+/**
+ * Compute the re-entry floor for a domain: the minimum timeLeft required
+ * before a blocked domain is reachable again. Fixed at 10% of originalTime.
+ * Returns 0 for a missing or non-finite cap.
+ * @param {number} originalTime - The domain's budget cap in seconds
+ * @returns {number} The floor value in seconds
+ */
+function reEntryFloor(originalTime) {
+  if (!Number.isFinite(originalTime) || originalTime <= 0) {
+    return 0;
+  }
+  return Math.ceil(originalTime * 0.1);
+}
+
+/**
+ * Update the isBlocked flag on a timer record based on timeLeft and the
+ * re-entry floor. Sets isBlocked when timeLeft is at or below zero, clears it
+ * when timeLeft is at or above the floor, and leaves it unchanged in the
+ * mid-band. Returns a new object rather than mutating.
+ * @param {Object} timerData - Timer data with timeLeft, originalTime, isBlocked
+ * @returns {Object} A new timer record with isBlocked updated
+ */
+function updateBlockedState(timerData) {
+  const originalTime =
+    Number.isFinite(timerData.originalTime) && timerData.originalTime > 0
+      ? timerData.originalTime
+      : 0;
+  const timeLeft = Number.isFinite(timerData.timeLeft) ? timerData.timeLeft : 0;
+  const floor = reEntryFloor(originalTime);
+  const prev = timerData.isBlocked === true;
+
+  let isBlocked = prev;
+  if (timeLeft <= 0) {
+    isBlocked = true;
+  } else if (timeLeft >= floor) {
+    isBlocked = false;
+  }
+
+  return { ...timerData, isBlocked };
+}
+
+/**
+ * Decide whether a domain is currently reachable.
+ * Returns false when isBlocked is true (even with positive timeLeft) or when
+ * timeLeft is zero/negative. A missing isBlocked field is treated as if it were
+ * derived from timeLeft <= 0.
+ * @param {Object} timerData - Timer data with timeLeft, isBlocked
+ * @returns {boolean}
+ */
+function canAccessDomain(timerData) {
+  if (!timerData) {
+    return false;
+  }
+  const timeLeft = Number.isFinite(timerData.timeLeft) ? timerData.timeLeft : 0;
+  const isBlocked =
+    timerData.isBlocked === true || (timerData.isBlocked === undefined && timeLeft <= 0);
+  return timeLeft > 0 && !isBlocked;
+}
+
 // Export for Node.js (testing) environment
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
@@ -283,6 +342,9 @@ if (typeof module !== "undefined" && module.exports) {
     validateDomain,
     formatTime,
     formatTimeTracking,
+    reEntryFloor,
+    updateBlockedState,
+    canAccessDomain,
   };
 } else if (typeof window !== "undefined") {
   // Browser environment - make functions globally available
@@ -297,6 +359,9 @@ if (typeof module !== "undefined" && module.exports) {
     validateDomain,
     formatTime,
     formatTimeTracking,
+    reEntryFloor,
+    updateBlockedState,
+    canAccessDomain,
   };
 } else {
   // Service worker environment - make functions globally available
@@ -311,5 +376,8 @@ if (typeof module !== "undefined" && module.exports) {
     validateDomain,
     formatTime,
     formatTimeTracking,
+    reEntryFloor,
+    updateBlockedState,
+    canAccessDomain,
   };
 }

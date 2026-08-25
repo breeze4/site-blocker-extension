@@ -199,4 +199,66 @@ describe('Background.js Integration', () => {
       expect(result.timeLeft).toBe(0); // Should cap at 0, not -11
     });
   });
+
+  describe('blocked-state lifecycle', () => {
+    test('drives timer to zero, confirms isBlocked, stays blocked below floor, then clears above floor', () => {
+      const now = Date.now();
+      const twoHoursMs = 2 * 60 * 60 * 1000;
+
+      // 1. Fresh timer at cap
+      let timer = {
+        originalTime: 60,
+        timeLeft: 60,
+        rechargeRate: 30, // 30s/hr
+        lastVisitTimestamp: now,
+        expiredMessageLogged: false,
+        isBlocked: false,
+      };
+
+      // 2. Countdown to zero → set isBlocked
+      for (let i = 0; i < 60; i++) {
+        timer = TimerUtils.decrementTimer(timer);
+      }
+      expect(timer.timeLeft).toBe(0);
+      // In real code background sets isBlocked=true on expiry; simulate that:
+      timer = TimerUtils.updateBlockedState(timer);
+      expect(timer.isBlocked).toBe(true);
+
+      // 3. Recharge below the floor (6s is the 10% floor for 60s cap).
+      // At 30s/hr, ~11min = 660s = 5s earned (below the 6s floor).
+      const lowRechargeTime = now + 11 * 60 * 1000; // 660s
+      timer = TimerUtils.applyRecharge(timer, lowRechargeTime);
+      timer = TimerUtils.updateBlockedState(timer);
+      expect(timer.timeLeft).toBeGreaterThan(0);
+      expect(timer.timeLeft).toBeLessThan(6); // Below the 10% floor of 6s
+      expect(timer.isBlocked).toBe(true); // Still blocked
+      expect(TimerUtils.canAccessDomain(timer)).toBe(false);
+
+      // 4. Recharge past the floor. 30s/hr, 4h = 120s (capped at 60).
+      const highRechargeTime = now + 4 * 60 * 60 * 1000;
+      timer = TimerUtils.applyRecharge(timer, highRechargeTime);
+      timer = TimerUtils.updateBlockedState(timer);
+      expect(timer.timeLeft).toBe(60);
+      expect(timer.isBlocked).toBe(false);
+      expect(TimerUtils.canAccessDomain(timer)).toBe(true);
+    });
+
+    test('a running session with timeLeft below the floor is not blocked', () => {
+      // Simulate a long-running session: started with 5min budget,
+      // now down to 10s (~3.3% of 300s). Since isBlocked is only set on
+      // the zero transition, a mid-session state below the floor is still active.
+      const timer = {
+        originalTime: 300,
+        timeLeft: 10,
+        rechargeRate: 30,
+        lastVisitTimestamp: Date.now(),
+        expiredMessageLogged: false,
+        isBlocked: false,
+      };
+      // updateBlockedState sees timeLeft > 0 and isBlocked=false → no change
+      const updated = TimerUtils.updateBlockedState(timer);
+      expect(updated.isBlocked).toBe(false);
+      expect(TimerUtils.canAccessDomain(timer)).toBe(true);
+    });
+  });
 });

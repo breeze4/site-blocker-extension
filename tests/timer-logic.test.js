@@ -13,7 +13,10 @@ const {
   parseURL,
   validateDomain,
   formatTime,
-  formatTimeTracking
+  formatTimeTracking,
+  reEntryFloor,
+  updateBlockedState,
+  canAccessDomain,
 } = require('../src/timer-utils');
 
 describe('Timer Logic', () => {
@@ -504,6 +507,69 @@ describe('Timer Logic', () => {
         expect(formatTimeTracking(NaN)).toBe('0s');
         expect(formatTimeTracking(Infinity)).toBe('0s');
       });
+    });
+  });
+
+  describe('reEntryFloor', () => {
+    test('returns 10% of the cap for a 60-second cap', () => {
+      expect(reEntryFloor(60)).toBe(6);
+    });
+    test('returns 10% of the cap for a 300-second cap (30)', () => {
+      expect(reEntryFloor(300)).toBe(30);
+    });
+    test('returns 0 for 0, NaN, Infinity, and null', () => {
+      expect(reEntryFloor(0)).toBe(0);
+      expect(reEntryFloor(NaN)).toBe(0);
+      expect(reEntryFloor(Infinity)).toBe(0);
+      expect(reEntryFloor(null)).toBe(0);
+      expect(reEntryFloor(undefined)).toBe(0);
+    });
+  });
+
+  describe('updateBlockedState', () => {
+    test('sets isBlocked when timeLeft is at or below zero', () => {
+      const state = updateBlockedState({ originalTime: 300, timeLeft: 0, isBlocked: false });
+      expect(state.isBlocked).toBe(true);
+    });
+    test('clears isBlocked when timeLeft reaches the floor', () => {
+      const state = updateBlockedState({ originalTime: 300, timeLeft: 30, isBlocked: true });
+      expect(state.isBlocked).toBe(false);
+    });
+    test('leaves isBlocked unchanged between zero and the floor (9% → 27s of 300)', () => {
+      const state = updateBlockedState({ originalTime: 300, timeLeft: 27, isBlocked: true });
+      expect(state.isBlocked).toBe(true);
+    });
+    test('leaves isBlocked unchanged when it was already false mid-band', () => {
+      const state = updateBlockedState({ originalTime: 300, timeLeft: 15, isBlocked: false });
+      expect(state.isBlocked).toBe(false);
+    });
+    test('returns a new object (does not mutate the input)', () => {
+      const input = { originalTime: 300, timeLeft: 0, isBlocked: false };
+      const state = updateBlockedState(input);
+      expect(state).not.toBe(input);
+      expect(state.isBlocked).toBe(true);
+      expect(input.isBlocked).toBe(false);
+    });
+  });
+
+  describe('canAccessDomain', () => {
+    test('returns false when isBlocked is true even with positive timeLeft', () => {
+      expect(canAccessDomain({ originalTime: 300, timeLeft: 15, isBlocked: true })).toBe(false);
+    });
+    test('returns false when timeLeft is zero or negative', () => {
+      expect(canAccessDomain({ originalTime: 300, timeLeft: 0, isBlocked: false })).toBe(false);
+      expect(canAccessDomain({ originalTime: 300, timeLeft: -5, isBlocked: false })).toBe(false);
+    });
+    test('returns false when the timer is nullish', () => {
+      expect(canAccessDomain(null)).toBe(false);
+      expect(canAccessDomain(undefined)).toBe(false);
+    });
+    test('derives isBlocked from timeLeft <= 0 when the field is absent', () => {
+      expect(canAccessDomain({ originalTime: 300, timeLeft: 0 })).toBe(false);
+      expect(canAccessDomain({ originalTime: 300, timeLeft: 30 })).toBe(true);
+    });
+    test('returns true for a normal accessible domain', () => {
+      expect(canAccessDomain({ originalTime: 300, timeLeft: 150, isBlocked: false })).toBe(true);
     });
   });
 });

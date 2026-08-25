@@ -14,6 +14,7 @@ const {
   validateDomain,
   formatTime,
   formatTimeTracking,
+  formatCountdown,
   reEntryFloor,
   updateBlockedState,
   canAccessDomain,
@@ -511,6 +512,41 @@ describe('Timer Logic', () => {
         expect(formatTimeTracking(-1)).toBe('0s');
         expect(formatTimeTracking(NaN)).toBe('0s');
         expect(formatTimeTracking(Infinity)).toBe('0s');
+      });
+    });
+
+    describe('formatCountdown', () => {
+      test('holds the even-hour figure for 61 seconds past the boundary', () => {
+        expect(formatCountdown(14400)).toBe('4h');
+        expect(formatCountdown(14399)).toBe('4h'); // 1s past
+        expect(formatCountdown(14340)).toBe('4h'); // 60s past
+        expect(formatCountdown(14339)).toBe('4h'); // 61s past
+        expect(formatCountdown(14338)).toBe('3h 59m'); // 62s past steps down
+      });
+
+      test('steps down minute by minute after the grace period', () => {
+        // 3h58m59s remaining = 2m01s below the 4h mark -> 3h 59m
+        expect(formatCountdown(14339 - 60)).toBe('3h 59m');
+        // 3h57m59s remaining = 3m01s below the 4h mark -> 3h 58m
+        expect(formatCountdown(14219)).toBe('3h 58m');
+      });
+
+      test('handles exact and near hour boundaries at other hours', () => {
+        expect(formatCountdown(7200)).toBe('2h');
+        expect(formatCountdown(7139)).toBe('2h');
+        expect(formatCountdown(7138)).toBe('1h 59m');
+        expect(formatCountdown(10800)).toBe('3h');
+      });
+
+      test('falls through to plain formatting for sub-hour values', () => {
+        expect(formatCountdown(3599)).toBe('59m 59s');
+        expect(formatCountdown(125)).toBe('2m 5s');
+        expect(formatCountdown(45)).toBe('45s');
+      });
+
+      test('should handle invalid input', () => {
+        expect(formatCountdown(-1)).toBe('0s');
+        expect(formatCountdown(NaN)).toBe('0s');
       });
     });
   });

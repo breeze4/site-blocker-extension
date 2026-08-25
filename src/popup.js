@@ -126,6 +126,7 @@ async function renderSiteStatus() {
   const resetError = $("resetError");
   if (timer.resetToken === true) {
     show("resetSection");
+    show("resetDivider");
     if (timeLeft >= originalTime && originalTime > 0) {
       resetBtn.disabled = true;
       resetBtn.textContent = "Reset Timer (budget full)";
@@ -135,6 +136,7 @@ async function renderSiteStatus() {
     }
   } else {
     hide("resetSection");
+    hide("resetDivider");
   }
   if (resetError) resetError.classList.add("hidden");
 }

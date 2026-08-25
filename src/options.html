@@ -5,6 +5,12 @@
   <meta charset="UTF-8">
   <title>Site Timer Blocker Settings</title>
   <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
     body {
       font-family: Arial, sans-serif;
       width: 80%;
@@ -15,8 +21,7 @@
       margin: 5px;
     }
     table {
-      width: auto;
-      max-width: 80%;
+      width: 100%;
       border-collapse: collapse;
       margin-top: 20px;
       table-layout: fixed;
@@ -337,6 +342,8 @@
       border-radius: 4px;
       padding: 16px;
       margin: 16px 0;
+      width: 100%;
+      box-sizing: border-box;
     }
     
     legend {
@@ -547,15 +554,13 @@
       </div>
     </div>
     <div id="global-recharge-help" class="sr-only">Choose how fast a site's time budget refills while you are away from it</div>
-    <fieldset>
-    <legend>Token Threshold (applies to all sites)</legend>
-    <div class="radio-group" id="globalThresholdGroup" role="radiogroup" aria-labelledby="global-threshold-help">
+    <div class="radio-group" id="globalThresholdGroup" role="radiogroup" aria-label="Token Threshold (applies to all sites)">
       <div class="radio-option">
         <input type="radio" id="globalThreshold4" name="globalTokenThreshold" value="4" aria-describedby="global-threshold-help">
         <label for="globalThreshold4">4 hours<span class="radio-note">absence earns a token</span></label>
       </div>
       <div class="radio-option">
-        <input type="radio" id="globalThreshold8" name="globalTokenThreshold" value="8" checked aria-describedby="global-threshold-help">
+        <input type="radio" id="globalThreshold8" name="globalTokenThreshold" value="8" aria-describedby="global-threshold-help">
         <label for="globalThreshold8">8 hours<span class="radio-note">absence earns a token</span></label>
       </div>
       <div class="radio-option">
@@ -568,7 +573,6 @@
       </div>
     </div>
     <div id="global-threshold-help" class="sr-only">Choose how many hours of absence earns a reset token for any tracked site</div>
-  </fieldset>
 
 </fieldset>
 
@@ -626,8 +630,8 @@
           <th role="columnheader" scope="col">Last 7d</th>
           <th role="columnheader" scope="col">Last 30d</th>
           <th role="columnheader" scope="col">All Time</th>
-          <th role="columnheader" scope="col">Full In</th>
-          <th role="columnheader" scope="col">Reset token</th>
+          <th role="columnheader" scope="col">Recharges in</th>
+          <th role="columnheader" scope="col">Earns reset token in</th>
           <th role="columnheader" scope="col">Actions</th>
         </tr>
       </thead>

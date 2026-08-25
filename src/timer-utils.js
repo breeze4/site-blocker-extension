@@ -271,6 +271,35 @@ function formatTimeTracking(totalSeconds) {
 }
 
 /**
+ * Format a countdown so hour figures hold steady instead of flickering.
+ * For an hour-scale countdown (e.g. "4h"), the even-hour figure is kept for
+ * at least 61 seconds past the boundary before stepping down to "3h 59m".
+ * Sub-hour values fall through to formatTimeTracking.
+ * @param {number} totalSeconds - Time in seconds
+ * @returns {string} Formatted countdown string
+ */
+function formatCountdown(totalSeconds) {
+  if (!Number.isFinite(totalSeconds) || totalSeconds < 0) {
+    return "0s";
+  }
+
+  const floorHours = Math.floor(totalSeconds / 3600);
+  if (floorHours === 0) {
+    return formatTimeTracking(totalSeconds);
+  }
+
+  const targetHours = Math.ceil(totalSeconds / 3600);
+  const deficitSec = targetHours * 3600 - totalSeconds;
+  // Grace period: hold the even-hour figure until more than 61s past boundary.
+  const minutesDown = Math.ceil(Math.max(0, deficitSec - 61) / 60);
+
+  if (minutesDown === 0) {
+    return `${targetHours}h`;
+  }
+  return `${targetHours - 1}h ${60 - minutesDown}m`;
+}
+
+/**
  * Compute the re-entry floor for a domain: the minimum timeLeft required
  * before a blocked domain is reachable again. Fixed at 10% of originalTime.
  * Returns 0 for a missing or non-finite cap.
@@ -467,6 +496,7 @@ if (typeof module !== "undefined" && module.exports) {
     validateDomain,
     formatTime,
     formatTimeTracking,
+    formatCountdown,
     reEntryFloor,
     updateBlockedState,
     canAccessDomain,
@@ -489,6 +519,7 @@ if (typeof module !== "undefined" && module.exports) {
     validateDomain,
     formatTime,
     formatTimeTracking,
+    formatCountdown,
     reEntryFloor,
     updateBlockedState,
     canAccessDomain,
@@ -511,6 +542,7 @@ if (typeof module !== "undefined" && module.exports) {
     validateDomain,
     formatTime,
     formatTimeTracking,
+    formatCountdown,
     reEntryFloor,
     updateBlockedState,
     canAccessDomain,

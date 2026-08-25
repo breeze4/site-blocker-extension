@@ -371,6 +371,9 @@ async function calculateTimeSpentInOptions(domain, period) {
 
 // Helper function to format time tracking data for display
 function formatTimeTracking(totalSeconds) {
+  // Countdown-style displays use formatCountdown (from TimerUtils) so hour
+  // figures hold steady; stats columns keep plain truncation via this local
+  // copy.
   if (!Number.isFinite(totalSeconds) || totalSeconds < 0) {
     return "0s";
   }
@@ -575,13 +578,18 @@ async function renderDomainList() {
       allTimeCell.setAttribute("data-domain", domain);
       allTimeCell.setAttribute("data-period", "alltime");
 
-      // Full In cell — estimated time until the budget recharges to its cap.
+      // "Recharges in" cell — estimated time until the budget recharges to its cap.
       const fullInCell = document.createElement("td");
       const secondsUntilFull =
         TimerUtils && TimerUtils.estimateSecondsUntilFull
           ? TimerUtils.estimateSecondsUntilFull(displayTimer)
           : 0;
-      fullInCell.textContent = secondsUntilFull > 0 ? formatTimeTracking(secondsUntilFull) : "Full";
+      fullInCell.textContent =
+        secondsUntilFull > 0
+          ? (TimerUtils && TimerUtils.formatCountdown
+              ? TimerUtils.formatCountdown(secondsUntilFull)
+              : formatTimeTracking(secondsUntilFull))
+          : "Full";
 
       // Reset token cell — shows token state and 30d spend count.
       const tokenCell = document.createElement("td");
@@ -598,7 +606,10 @@ async function renderDomainList() {
               ? TimerUtils.secondsUntilTokenReady(timerEntry || {}, Date.now())
               : 0;
           if (secsUntil > 0) {
-            tokenCell.textContent = formatTimeTracking(secsUntil);
+            tokenCell.textContent =
+            TimerUtils && TimerUtils.formatCountdown
+              ? TimerUtils.formatCountdown(secsUntil)
+              : secsUntil;
           } else {
             tokenCell.textContent = "—";
           }
@@ -954,12 +965,10 @@ async function initializeGlobalTokenThreshold() {
     const domainTimers = (await StorageUtils.getFromStorage("domainTimers")) || {};
     const domains = Object.keys(domainTimers);
 
-    if (domains.length > 0) {
-      const currentThreshold = domainTimers[domains[0]].tokenThresholdHours || 8;
-      const radioToSelect = document.getElementById(`globalThreshold${currentThreshold}`);
-      if (radioToSelect) {
-        radioToSelect.checked = true;
-      }
+    const currentThreshold = domains.length > 0 ? (domainTimers[domains[0]].tokenThresholdHours || 8) : 8;
+    const radioToSelect = document.getElementById(`globalThreshold${currentThreshold}`);
+    if (radioToSelect) {
+      radioToSelect.checked = true;
     }
   } catch (error) {}
 }
@@ -1029,7 +1038,7 @@ async function updateTimeDisplays() {
           timeLeftCell.textContent = formatTime(displayTimeLeft);
         }
 
-        // Update Full In (8th column)
+        // Update "Recharges in" (8th column)
         const fullInCell = row.cells[7];
         if (fullInCell) {
           const secondsUntilFull =
@@ -1037,7 +1046,11 @@ async function updateTimeDisplays() {
               ? TimerUtils.estimateSecondsUntilFull(displayTimer)
               : 0;
           fullInCell.textContent =
-            secondsUntilFull > 0 ? formatTimeTracking(secondsUntilFull) : "Full";
+            secondsUntilFull > 0
+              ? (TimerUtils && TimerUtils.formatCountdown
+                  ? TimerUtils.formatCountdown(secondsUntilFull)
+                  : formatTimeTracking(secondsUntilFull))
+              : "Full";
         }
 
         // Update Reset token (8th column / now 9th)
@@ -1054,7 +1067,10 @@ async function updateTimeDisplays() {
                 ? TimerUtils.secondsUntilTokenReady(timerEntry || {}, Date.now())
                 : 0;
             if (secsUntil > 0) {
-              tokenCell.textContent = formatTimeTracking(secsUntil);
+              tokenCell.textContent =
+            TimerUtils && TimerUtils.formatCountdown
+              ? TimerUtils.formatCountdown(secsUntil)
+              : secsUntil;
             } else {
               tokenCell.textContent = "—";
             }

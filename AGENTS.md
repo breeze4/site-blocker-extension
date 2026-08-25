@@ -25,13 +25,13 @@ The background service worker is the single source of truth for timer state.
   while the domain is actively tracked. It stays live by listening to
   `chrome.storage.onChanged`, not by polling — the background writes each second.
 - `src/popup.html` / `popup.js` — toolbar popup: shows status, "block this site",
-  and a password-gated pause. Re-reads storage once a second while open.
+  and a link to the Options page. Re-reads storage once a second while open.
 - `src/options.html` / `options.js` — full-page settings + analytics dashboard.
 - `src/storage-utils.js` — promisified `chrome.storage.local` get/set. In page
   contexts (content/popup/options) it exposes `window.StorageUtils`; in the
   worker the functions are plain globals via `importScripts`.
 - `src/timer-utils.js` — pure helpers (decrement, reset logic, URL/domain
-  parsing, time formatting, pause-password generation). Exported for both the
+  parsing, time formatting). Exported for both the
   browser (`window.TimerUtils` / worker global) and Node (`module.exports`) so
   they are unit-testable. **Keep new pure logic here and test it.**
 
@@ -40,8 +40,6 @@ The background service worker is the single source of truth for timer state.
 - `domainTimers` — per-domain `{ originalTime, timeLeft, resetInterval,
   lastResetTimestamp, expiredMessageLogged }` (seconds / hours / ms).
 - `timeTracking` — per-domain daily totals + all-time + session bookkeeping.
-- `blockingPaused` — global boolean; when true, no timers run and nothing blocks.
-- `pausePassword` — readable code gating pause from the popup; rotates on use.
 
 Full field-by-field docs live in `docs/SPEC.md`.
 

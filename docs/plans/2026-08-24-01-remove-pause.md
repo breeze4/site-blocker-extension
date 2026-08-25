@@ -39,21 +39,21 @@ None - can start immediately.
 
 ## Acceptance criteria
 
-- [ ] `grep -ri "paus" src/ tests/ docs/SPEC.md` returns no matches.
-- [ ] `grep -rn "resetTimersButton\|Reset All Timers" src/ tests/` returns no matches.
-- [ ] `pnpm test` passes with every suite green.
-- [ ] `pnpm lint` reports no new errors beyond the pre-existing empty-catch warnings.
-- [ ] A unit test asserts the storage remove helper resolves for a single key and
+- [x] `grep -ri "paus" src/ tests/ docs/SPEC.md` returns no matches.
+- [x] `grep -rn "resetTimersButton\|Reset All Timers" src/ tests/` returns no matches.
+- [x] `pnpm test` passes with every suite green.
+- [x] `pnpm lint` reports no new errors beyond the pre-existing empty-catch warnings.
+- [x] A unit test asserts the storage remove helper resolves for a single key and
       for an array of keys, and rejects on `chrome.runtime.lastError`.
-- [ ] A background test asserts startup removes both `blockingPaused` and
+- [x] A background test asserts startup removes both `blockingPaused` and
       `pausePassword` from local storage.
-- [ ] `tests/popup-helpers.test.js` exists and still covers `isTrackableUrl`,
+- [x] `tests/popup-helpers.test.js` exists and still covers `isTrackableUrl`,
       `getDomainFromUrl`, `getInheritedRechargeRate`, `getProgressPercent`, and
       the default-block-minutes constant. `tests/pause-feature.test.js` no longer
       exists.
-- [ ] `src/popup.html` contains a control that calls `chrome.runtime.openOptionsPage`,
+- [x] `src/popup.html` contains a control that calls `chrome.runtime.openOptionsPage`,
       and a popup test asserts the handler is wired.
-- [ ] The content script's overlay sync takes no paused argument, and its tests
+- [x] The content script's overlay sync takes no paused argument, and its tests
       pass without one.
 
 ## Owns
@@ -115,26 +115,26 @@ None - can start immediately.
 
 ## Tasks
 
-- [ ] Add `removeFromStorage` to the storage utilities, accepting a key or an
+- [x] Add `removeFromStorage` to the storage utilities, accepting a key or an
       array of keys, with all three exports updated.
-- [ ] Delete the three password helpers from the timer utilities and remove them
+- [x] Delete the three password helpers from the timer utilities and remove them
       from the Node, window, and worker export blocks.
-- [ ] Remove the pause gate, the cached flag, `getBlockingPaused`, the in-interval
+- [x] Remove the pause gate, the cached flag, `getBlockingPaused`, the in-interval
       pause check, and the storage-listener branch from the worker.
-- [ ] Replace the pause and password setup in `initialize` with a one-time cleanup
+- [x] Replace the pause and password setup in `initialize` with a one-time cleanup
       that removes both dead keys through `removeFromStorage`.
-- [ ] Drop the paused reads and the `paused` parameter from the content script,
+- [x] Drop the paused reads and the `paused` parameter from the content script,
       simplifying `syncOverlay` to take only the timer map.
-- [ ] Remove the popup pause panel, its handlers, and its styles; add an Options
+- [x] Remove the popup pause panel, its handlers, and its styles; add an Options
       link that calls `chrome.runtime.openOptionsPage`.
-- [ ] Remove the Options password panel, its handlers, and the "Reset All Timers"
+- [x] Remove the Options password panel, its handlers, and the "Reset All Timers"
       button and handler.
-- [ ] Rename the pause test suite to `tests/popup-helpers.test.js`, delete the
+- [x] Rename the pause test suite to `tests/popup-helpers.test.js`, delete the
       password describe block and the WebCrypto shim, and keep the popup helper
       coverage intact.
-- [ ] Add coverage for `removeFromStorage` and for the startup key cleanup.
-- [ ] Update `docs/SPEC.md` and the storage bullets in `AGENTS.md`.
-- [ ] Run `pnpm test`, `pnpm lint`, and `pnpm format`.
+- [x] Add coverage for `removeFromStorage` and for the startup key cleanup.
+- [x] Update `docs/SPEC.md` and the storage bullets in `AGENTS.md`.
+- [x] Run `pnpm test`, `pnpm lint`, and `pnpm format`.
 
 ## Implementation notes
 

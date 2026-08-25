@@ -37,13 +37,31 @@ function getFromStorage(key) {
   });
 }
 
+// A Promise-based wrapper for chrome.storage.local.remove to delete one key or
+// a list of keys from local storage.
+function removeFromStorage(keys) {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.remove(keys, () => {
+      if (chrome.runtime.lastError) {
+        reject(chrome.runtime.lastError);
+      } else {
+        resolve();
+      }
+    });
+  });
+}
+
 // Export the functions for use in other modules
 // Check if we're in a service worker environment (no window object)
-if (typeof window !== "undefined") {
+if (typeof module !== "undefined" && module.exports) {
+  // Node (test) environment
+  module.exports = { setToStorage, getFromStorage, removeFromStorage };
+} else if (typeof window !== "undefined") {
   // Content script environment
   window.StorageUtils = {
     setToStorage,
     getFromStorage,
+    removeFromStorage,
     debugLog,
     isDebugMode,
   };

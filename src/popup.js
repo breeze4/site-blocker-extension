@@ -110,21 +110,6 @@ async function renderSiteStatus() {
   $("progressFill").style.width = `${getProgressPercent(timeLeft, originalTime)}%`;
 }
 
-async function renderPauseSection() {
-  const paused = (await StorageUtils.getFromStorage("blockingPaused")) === true;
-
-  if (paused) {
-    show("pausedNotice");
-    hide("pauseControls");
-    show("resumeControls");
-  } else {
-    hide("pausedNotice");
-    show("pauseControls");
-    hide("resumeControls");
-    $("pauseError").textContent = "";
-  }
-}
-
 async function handleBlockSite() {
   if (!currentTrackable || !currentDomain) {
     return;
@@ -156,51 +141,17 @@ async function handleBlockSite() {
   await renderSiteStatus();
 }
 
-async function handlePause() {
-  const input = $("pausePasswordInput");
-  const errorEl = $("pauseError");
-  const entered = input ? input.value : "";
-
-  const stored = await StorageUtils.getFromStorage("pausePassword");
-
-  if (!TimerUtils.checkPausePassword(entered, stored)) {
-    errorEl.textContent = "Incorrect password. Copy it from the Options page.";
-    return;
-  }
-
-  // Correct entry: pause blocking and rotate the password so the next pause
-  // requires a fresh trip to the Options page.
-  const newPassword = TimerUtils.generatePausePassword();
-  await StorageUtils.setToStorage({ blockingPaused: true, pausePassword: newPassword });
-
-  if (input) {
-    input.value = "";
-  }
-  errorEl.textContent = "";
-  await renderPauseSection();
-}
-
-async function handleResume() {
-  await StorageUtils.setToStorage({ blockingPaused: false });
-  await renderPauseSection();
-}
-
 async function init() {
   const tab = await getActiveTab();
   currentTrackable = tab ? isTrackableUrl(tab.url) : false;
   currentDomain = currentTrackable ? getDomainFromUrl(tab.url) : null;
 
   $("blockSiteButton")?.addEventListener("click", handleBlockSite);
-  $("pauseButton")?.addEventListener("click", handlePause);
-  $("resumeButton")?.addEventListener("click", handleResume);
-  $("pausePasswordInput")?.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      handlePause();
-    }
+  $("openOptionsButton")?.addEventListener("click", () => {
+    chrome.runtime.openOptionsPage();
   });
 
   await renderSiteStatus();
-  await renderPauseSection();
 
   // Live-refresh the timer display while the popup is open. The background
   // service worker is the single writer that decrements the stored time.

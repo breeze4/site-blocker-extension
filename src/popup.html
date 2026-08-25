@@ -90,57 +90,19 @@
       background-color: #1976D2;
     }
 
-    .warn-button {
-      background-color: #ff9800;
-      color: white;
+    .muted-footer-button {
+      background: none;
+      color: #777;
+      font-size: 12px;
     }
-    .warn-button:hover {
-      background-color: #f57c00;
+    .muted-footer-button:hover {
+      color: #444;
+      text-decoration: underline;
     }
 
     .divider {
       border-top: 1px solid #e0e0e0;
       margin: 12px 0;
-    }
-
-    .pause-input {
-      width: 100%;
-      box-sizing: border-box;
-      padding: 8px;
-      font-family: monospace;
-      font-size: 14px;
-      letter-spacing: 1px;
-      border: 2px solid #ddd;
-      border-radius: 4px;
-      margin-bottom: 8px;
-    }
-    .pause-input:focus {
-      border-color: #4CAF50;
-      outline: none;
-    }
-
-    .pause-hint {
-      font-size: 12px;
-      color: #777;
-      margin: 0 0 6px 0;
-    }
-
-    .pause-error {
-      color: #d32f2f;
-      font-size: 12px;
-      margin-top: 6px;
-      min-height: 14px;
-    }
-
-    .paused-notice {
-      background-color: #fff3e0;
-      border: 1px solid #ffcc80;
-      color: #e65100;
-      border-radius: 4px;
-      padding: 8px;
-      font-size: 13px;
-      margin-bottom: 8px;
-      text-align: center;
     }
 
     .hidden {
@@ -160,16 +122,6 @@
       }
       .progress-track {
         background-color: #3d3d3d;
-      }
-      .pause-input {
-        background-color: #2d2d2d;
-        color: #e0e0e0;
-        border-color: #555;
-      }
-      .paused-notice {
-        background-color: #4e2a00;
-        border-color: #a35200;
-        color: #ffcc80;
       }
     }
   </style>
@@ -201,23 +153,11 @@
 
   <div class="divider"></div>
 
-  <!-- Pause controls -->
-  <div id="pauseSection" class="section">
-    <div id="pausedNotice" class="paused-notice hidden">Blocking is paused.</div>
+  <div class="divider"></div>
 
-    <div id="pauseControls" class="hidden">
-      <p class="pause-hint">Enter the pause password to pause blocking. Get it from the
-        extension's Options page, which you open from <strong>chrome://extensions</strong>
-        (Details &rarr; Extension options).</p>
-      <input type="password" id="pausePasswordInput" class="pause-input" placeholder="pause password"
-        autocomplete="off" aria-label="Pause password">
-      <button id="pauseButton" class="warn-button full-width">Pause blocking</button>
-      <div id="pauseError" class="pause-error" role="alert"></div>
-    </div>
-
-    <div id="resumeControls" class="hidden">
-      <button id="resumeButton" class="primary-button full-width">Resume blocking</button>
-    </div>
+  <!-- Options link -->
+  <div id="optionsSection" class="section">
+    <button id="openOptionsButton" class="muted-footer-button full-width">Open Options</button>
   </div>
 
   <script src="storage-utils.js"></script>

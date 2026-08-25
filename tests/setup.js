@@ -12,6 +12,10 @@ global.chrome = {
       set: jest.fn((items, callback) => {
         if (callback) callback();
         return Promise.resolve();
+      }),
+      remove: jest.fn((keys, callback) => {
+        if (callback) callback();
+        return Promise.resolve();
       })
     }
   },
@@ -24,6 +28,8 @@ global.chrome = {
       addListener: jest.fn()
     },
     getURL: jest.fn(path => `chrome-extension://fake-id/${path}`),
+    getManifest: jest.fn(() => ({})),
+    openOptionsPage: jest.fn(),
     lastError: null
   },
   tabs: {

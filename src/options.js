@@ -809,42 +809,6 @@ document.getElementById("domainListBody").addEventListener("click", async (event
   }
 });
 
-// Add an event listener to the "Reset Timers" button.
-document.getElementById("resetTimersButton").addEventListener("click", async (event) => {
-  event.preventDefault();
-
-  // This function resets the time left for all domains to their original time.
-  function resetTimers(domainTimers) {
-    const currentTime = Date.now();
-
-    for (const [domain, timerData] of Object.entries(domainTimers)) {
-      if (!isPlainRecord(timerData)) {
-        continue;
-      }
-
-      timerData.timeLeft = timerData.originalTime;
-      timerData.lastVisitTimestamp = currentTime;
-      timerData.expiredMessageLogged = false;
-      domainTimers[domain] = timerData;
-    }
-    return domainTimers;
-  }
-
-  try {
-    // Get the current domain timers from storage.
-    const storedDomainTimers = await StorageUtils.getFromStorage("domainTimers");
-    const domainTimers = isPlainRecord(storedDomainTimers) ? storedDomainTimers : {};
-    // Reset the timers.
-    const domainTimersReset = resetTimers(domainTimers);
-
-    // Save the reset timers back to storage.
-    await StorageUtils.setToStorage({ domainTimers: domainTimersReset });
-
-    // Re-render the domain list to show the updated timers.
-    renderDomainList();
-  } catch (error) {}
-});
-
 // Add an event listener to the "Reset All Tracking" button.
 document.getElementById("resetAllTrackingButton").addEventListener("click", async (event) => {
   event.preventDefault();
@@ -916,61 +880,6 @@ async function initializeGlobalRechargeRate() {
   } catch (error) {}
 }
 
-// Pause password management
-function setPausePasswordStatus(message) {
-  const status = document.getElementById("pausePasswordStatus");
-  if (status) {
-    status.textContent = message;
-  }
-}
-
-async function loadPausePassword() {
-  try {
-    const value = await StorageUtils.getFromStorage("pausePassword");
-    const input = document.getElementById("pausePasswordValue");
-    if (input) {
-      input.value = typeof value === "string" ? value : "";
-    }
-  } catch (error) {}
-}
-
-document.getElementById("copyPausePasswordButton")?.addEventListener("click", async () => {
-  const input = document.getElementById("pausePasswordValue");
-  if (!input || !input.value) {
-    return;
-  }
-
-  try {
-    await navigator.clipboard.writeText(input.value);
-    setPausePasswordStatus("Copied to clipboard.");
-  } catch (error) {
-    // Fallback for environments without the async clipboard API.
-    input.removeAttribute("readonly");
-    input.select();
-    if (typeof document.execCommand === "function") {
-      document.execCommand("copy");
-    }
-    input.setAttribute("readonly", "");
-    setPausePasswordStatus("Select the code and copy it (Ctrl/Cmd+C).");
-  }
-});
-
-document.getElementById("regeneratePausePasswordButton")?.addEventListener("click", async () => {
-  if (!TimerUtils || typeof TimerUtils.generatePausePassword !== "function") {
-    return;
-  }
-
-  try {
-    const newPassword = TimerUtils.generatePausePassword();
-    await StorageUtils.setToStorage({ pausePassword: newPassword });
-    const input = document.getElementById("pausePasswordValue");
-    if (input) {
-      input.value = newPassword;
-    }
-    setPausePasswordStatus("New password generated.");
-  } catch (error) {}
-});
-
 // Handle onboarding flow
 function handleOnboarding() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -996,7 +905,6 @@ function handleOnboarding() {
 
 // Initialize when page loads
 initializeGlobalRechargeRate();
-loadPausePassword();
 handleOnboarding();
 
 // Render the initial list of domains when the options page is loaded.

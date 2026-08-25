@@ -138,13 +138,13 @@ function removeOverlay() {
 }
 
 // Decide overlay visibility from current state. Shown only for a tracked domain
-// with positive finite time left and while blocking is not paused.
-function syncOverlay(domainTimers, paused) {
+// with positive finite time left.
+function syncOverlay(domainTimers) {
   const domain = getCurrentDomain();
   const timer = domain && domainTimers ? domainTimers[domain] : null;
   const active = timer && Number.isFinite(timer.timeLeft) && timer.timeLeft > 0;
 
-  if (paused || !active) {
+  if (!active) {
     removeOverlay();
     return;
   }
@@ -154,32 +154,30 @@ function syncOverlay(domainTimers, paused) {
 // On load: block an already-expired page, otherwise show the live overlay.
 async function init() {
   try {
-    const paused = (await StorageUtils.getFromStorage("blockingPaused")) === true;
     const domainTimers = (await StorageUtils.getFromStorage("domainTimers")) || {};
     const domain = getCurrentDomain();
     const timer = domain ? domainTimers[domain] : null;
 
     // If this domain has a timer and it's already exhausted, block the page.
-    if (!paused && timer && !(Number.isFinite(timer.timeLeft) && timer.timeLeft > 0)) {
+    if (timer && !(Number.isFinite(timer.timeLeft) && timer.timeLeft > 0)) {
       document.body.innerHTML = "<h1>Access Blocked</h1><p>Your time is up for this site.</p>";
       return;
     }
 
-    syncOverlay(domainTimers, paused);
+    syncOverlay(domainTimers);
   } catch (error) {}
 }
 
 // Keep the overlay live without polling: the background rewrites domainTimers
-// each second and toggles blockingPaused. Re-sync the overlay on either change.
+// each second. Re-sync the overlay on each change.
 if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.onChanged) {
   chrome.storage.onChanged.addListener(async (changes, areaName) => {
-    if (areaName !== "local" || (!changes.domainTimers && !changes.blockingPaused)) {
+    if (areaName !== "local" || !changes.domainTimers) {
       return;
     }
     try {
-      const paused = (await StorageUtils.getFromStorage("blockingPaused")) === true;
       const domainTimers = (await StorageUtils.getFromStorage("domainTimers")) || {};
-      syncOverlay(domainTimers, paused);
+      syncOverlay(domainTimers);
     } catch (error) {}
   });
 }

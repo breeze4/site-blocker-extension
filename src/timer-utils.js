@@ -430,6 +430,30 @@ function spendResetToken(timerData, currentTime = Date.now()) {
   };
 }
 
+/**
+ * Decide whether to show the reset-token button in the overlay pill.
+ * Returns true only when a token is held AND timeLeft is at or below the
+ * larger of 30 seconds and 25% of the cap — the waste guard that prevents
+ * spending a token early.
+ * @param {Object} timerData
+ * @returns {boolean}
+ */
+function shouldOfferOverlayReset(timerData) {
+  if (!timerData || timerData.resetToken !== true) {
+    return false;
+  }
+  const originalTime =
+    Number.isFinite(timerData.originalTime) && timerData.originalTime > 0
+      ? timerData.originalTime
+      : 0;
+  const timeLeft = Number.isFinite(timerData.timeLeft) ? timerData.timeLeft : 0;
+  if (timeLeft > originalTime) {
+    return false;
+  }
+  const bound = Math.max(30, Math.ceil(originalTime * 0.25));
+  return timeLeft <= bound;
+}
+
 // Export for Node.js (testing) environment
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
@@ -450,6 +474,7 @@ if (typeof module !== "undefined" && module.exports) {
     grantResetTokenIfEarned,
     secondsUntilTokenReady,
     spendResetToken,
+    shouldOfferOverlayReset,
   };
 } else if (typeof window !== "undefined") {
   // Browser environment - make functions globally available
@@ -471,6 +496,7 @@ if (typeof module !== "undefined" && module.exports) {
     grantResetTokenIfEarned,
     secondsUntilTokenReady,
     spendResetToken,
+    shouldOfferOverlayReset,
   };
 } else {
   // Service worker environment - make functions globally available
@@ -492,5 +518,6 @@ if (typeof module !== "undefined" && module.exports) {
     grantResetTokenIfEarned,
     secondsUntilTokenReady,
     spendResetToken,
+    shouldOfferOverlayReset,
   };
 }

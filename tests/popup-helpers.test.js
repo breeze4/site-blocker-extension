@@ -6,6 +6,7 @@ const {
   isTrackableUrl,
   getDomainFromUrl,
   getInheritedRechargeRate,
+  getInheritedTokenThreshold,
   getProgressPercent,
   DEFAULT_BLOCK_MINUTES,
   DEFAULT_RECHARGE_RATE,
@@ -152,5 +153,27 @@ describe("popup options link wiring", () => {
 
     document.getElementById("openOptionsButton").click();
     expect(chrome.runtime.openOptionsPage).toHaveBeenCalled();
+  });
+});
+
+describe("getInheritedTokenThreshold", () => {
+  test("returns 8 when no domains exist", () => {
+    expect(getInheritedTokenThreshold({})).toBe(8);
+    expect(getInheritedTokenThreshold(null)).toBe(8);
+  });
+
+  test("inherits threshold from an existing domain", () => {
+    const dt = { "a.com": { tokenThresholdHours: 4 } };
+    expect(getInheritedTokenThreshold(dt)).toBe(4);
+  });
+
+  test("skips domains with invalid thresholds", () => {
+    const dt = { "a.com": { tokenThresholdHours: 3 }, "b.com": { tokenThresholdHours: 12 } };
+    expect(getInheritedTokenThreshold(dt)).toBe(12);
+  });
+
+  test("falls back to 8 with no valid threshold", () => {
+    const dt = { "a.com": { tokenThresholdHours: 0 } };
+    expect(getInheritedTokenThreshold(dt)).toBe(8);
   });
 });

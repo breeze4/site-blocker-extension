@@ -101,18 +101,48 @@ function buildOverlay() {
         border-radius: 2px;
         transition: width 0.3s ease, background-color 0.3s ease;
       }
+      .reset-btn {
+        margin-top: 6px;
+        padding: 3px 8px;
+        font: 600 11px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        color: #fff;
+        background: #4caf50;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        pointer-events: auto;
+        display: none;
+      }
+      .reset-btn.show { display: block; }
     </style>
     <div class="pill" role="status" aria-live="off">
       <span class="time"></span>
       <div class="track"><div class="fill"></div></div>
+      <button class="reset-btn">Reset timer</button>
     </div>
   `;
   (document.body || document.documentElement).appendChild(host);
+  // Wire the overlay's reset button via the content script. The button stays
+  // hidden by default; syncOverlay toggles visibility.
+  const btn = root.querySelector(".reset-btn");
+  if (btn) {
+    btn.addEventListener("click", async () => {
+      const domain = getCurrentDomain();
+      if (!domain) return;
+      try {
+        await chrome.runtime.sendMessage({
+          action: "spendResetToken",
+          domain,
+        });
+      } catch (_) {}
+    });
+  }
   return host;
 }
 
-// Render (creating if needed) the overlay for the given timer values.
-function renderOverlay(timeLeft, originalTime) {
+// Render (creating if needed) the overlay for the given timer values and
+// optionally show the reset button.
+function renderOverlay(timeLeft, originalTime, showReset) {
   let host = document.getElementById(OVERLAY_HOST_ID);
   if (!host || !host.shadowRoot) {
     host = buildOverlay();
@@ -128,6 +158,14 @@ function renderOverlay(timeLeft, originalTime) {
     fillEl.style.width = `${percent}%`;
     fillEl.style.backgroundColor = urgencyColor(percent);
   }
+  const btn = root.querySelector(".reset-btn");
+  if (btn) {
+    if (showReset) {
+      btn.classList.add("show");
+    } else {
+      btn.classList.remove("show");
+    }
+  }
 }
 
 function removeOverlay() {
@@ -138,7 +176,8 @@ function removeOverlay() {
 }
 
 // Decide overlay visibility from current state. Shown only for a tracked domain
-// with positive finite time left.
+// with positive finite time left. The reset button appears only when a token is
+// held and time is nearly gone.
 function syncOverlay(domainTimers) {
   const domain = getCurrentDomain();
   const timer = domain && domainTimers ? domainTimers[domain] : null;
@@ -148,7 +187,11 @@ function syncOverlay(domainTimers) {
     removeOverlay();
     return;
   }
-  renderOverlay(timer.timeLeft, timer.originalTime);
+  const showReset =
+    typeof TimerUtils !== "undefined" && TimerUtils.shouldOfferOverlayReset
+      ? TimerUtils.shouldOfferOverlayReset(timer)
+      : false;
+  renderOverlay(timer.timeLeft, timer.originalTime, showReset);
 }
 
 // On load: block an already-expired page, otherwise show the live overlay.

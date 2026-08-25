@@ -29,6 +29,7 @@
       ],
       "js": [
         "storage-utils.js",
+        "timer-utils.js",
         "content.js"
       ],
       "run_at": "document_idle"

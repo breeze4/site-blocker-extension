@@ -71,6 +71,17 @@ function getProgressPercent(timeLeft, originalTime) {
   return Math.max(0, Math.min(100, pct));
 }
 
+function getInheritedTokenThreshold(domainTimers) {
+  const domains = Object.keys(domainTimers || {});
+  for (const domain of domains) {
+    const th = domainTimers[domain]?.tokenThresholdHours;
+    if ([4, 8, 12, 24].includes(th)) {
+      return th;
+    }
+  }
+  return 8;
+}
+
 async function renderSiteStatus() {
   const domainNameEl = $("domainName");
 
@@ -108,6 +119,24 @@ async function renderSiteStatus() {
   }
 
   $("progressFill").style.width = `${getProgressPercent(timeLeft, originalTime)}%`;
+
+  // Reset token control: shown when a token is held, disabled at the cap.
+  const resetSection = $("resetSection");
+  const resetBtn = $("resetTimerButton");
+  const resetError = $("resetError");
+  if (timer.resetToken === true) {
+    show("resetSection");
+    if (timeLeft >= originalTime && originalTime > 0) {
+      resetBtn.disabled = true;
+      resetBtn.textContent = "Reset Timer (budget full)";
+    } else {
+      resetBtn.disabled = false;
+      resetBtn.textContent = "Reset Timer";
+    }
+  } else {
+    hide("resetSection");
+  }
+  if (resetError) resetError.classList.add("hidden");
 }
 
 async function handleBlockSite() {
@@ -135,10 +164,40 @@ async function handleBlockSite() {
     rechargeRate,
     lastVisitTimestamp: Date.now(),
     expiredMessageLogged: false,
+    isBlocked: false,
+    resetToken: false,
+    tokenThresholdHours: getInheritedTokenThreshold(domainTimers),
+    awaySince: Date.now(),
   };
 
   await StorageUtils.setToStorage({ domainTimers });
   await renderSiteStatus();
+}
+
+async function handleReset() {
+  if (!currentDomain) return;
+  const errorEl = $("resetError");
+  if (errorEl) errorEl.classList.add("hidden");
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: "spendResetToken",
+      domain: currentDomain,
+    });
+    if (!response || !response.success) {
+      if (errorEl) {
+        errorEl.textContent =
+          response && response.reason === "at-cap"
+            ? "Budget is already full."
+            : "No token available.";
+        errorEl.classList.remove("hidden");
+      }
+    }
+  } catch (_) {
+    if (errorEl) {
+      errorEl.textContent = "Unable to reset timer.";
+      errorEl.classList.remove("hidden");
+    }
+  }
 }
 
 async function init() {
@@ -147,6 +206,7 @@ async function init() {
   currentDomain = currentTrackable ? getDomainFromUrl(tab.url) : null;
 
   $("blockSiteButton")?.addEventListener("click", handleBlockSite);
+  $("resetTimerButton")?.addEventListener("click", handleReset);
   $("openOptionsButton")?.addEventListener("click", () => {
     chrome.runtime.openOptionsPage();
   });
@@ -170,6 +230,7 @@ if (typeof module !== "undefined" && module.exports) {
     isTrackableUrl,
     getDomainFromUrl,
     getInheritedRechargeRate,
+    getInheritedTokenThreshold,
     getProgressPercent,
     DEFAULT_BLOCK_MINUTES,
     DEFAULT_RECHARGE_RATE,

@@ -42,27 +42,27 @@ AFK
 
 ## Acceptance criteria
 
-- [ ] `shouldOfferOverlayReset` returns true only when a token is held and
+- [x] `shouldOfferOverlayReset` returns true only when a token is held and
       `timeLeft` is at or below the larger of 30 seconds and 25% of the cap. Unit
       tests cover a 60-second cap where the bound is 30, a 300-second cap where
       the bound is 75, the exact boundary value, one second above it, and a held
       token with a full budget.
-- [ ] `shouldOfferOverlayReset` returns false whenever no token is held,
+- [x] `shouldOfferOverlayReset` returns false whenever no token is held,
       regardless of remaining time.
-- [ ] A content script test asserts the overlay renders the button when the helper
+- [x] A content script test asserts the overlay renders the button when the helper
       returns true and omits it when the helper returns false, driven through the
       storage change listener rather than by calling the renderer directly.
-- [ ] A content script test asserts the overlay host still carries
+- [x] A content script test asserts the overlay host still carries
       `pointer-events: none` and that the button element carries
       `pointer-events: auto`.
-- [ ] A content script test asserts a click sends the spend message with the
+- [x] A content script test asserts a click sends the spend message with the
       current domain and does not write `domainTimers` from the content script.
-- [ ] A popup test asserts the reset control is hidden with no token, shown with a
+- [x] A popup test asserts the reset control is hidden with no token, shown with a
       token below the cap, and disabled with a token at the cap.
-- [ ] A popup test asserts blocking a new site writes `tokenThresholdHours`
+- [x] A popup test asserts blocking a new site writes `tokenThresholdHours`
       inherited from an existing domain, falling back to 8 with no domains, plus
       `resetToken: false`, `isBlocked: false`, and an `awaySince` timestamp.
-- [ ] `pnpm test` passes and `pnpm lint` reports no new errors.
+- [x] `pnpm test` passes and `pnpm lint` reports no new errors.
 
 ## Owns
 
@@ -109,21 +109,21 @@ duplicates a tested helper and is not acceptable.
 
 ## Tasks
 
-- [ ] Add `shouldOfferOverlayReset` as a pure helper and export it three ways.
-- [ ] Add the timer utilities to the content script's script list in the manifest,
+- [x] Add `shouldOfferOverlayReset` as a pure helper and export it three ways.
+- [x] Add the timer utilities to the content script's script list in the manifest,
       before `content.js`.
-- [ ] Add the button to the overlay's shadow root, with `pointer-events: auto` on
+- [x] Add the button to the overlay's shadow root, with `pointer-events: auto` on
       the button only, and keep the host non-interactive.
-- [ ] Show and hide the button from `syncOverlay` through the helper, and send the
+- [x] Show and hide the button from `syncOverlay` through the helper, and send the
       spend message on click.
-- [ ] Add the popup control, shown whenever a token is held and disabled at the
+- [x] Add the popup control, shown whenever a token is held and disabled at the
       cap, wired to the same message.
-- [ ] Add threshold inheritance and the three new fields to the popup's
+- [x] Add threshold inheritance and the three new fields to the popup's
       block-this-site path.
-- [ ] Write the coverage listed in the acceptance criteria.
-- [ ] Update `docs/SPEC.md`, including retiring the non-goal that the overlay
+- [x] Write the coverage listed in the acceptance criteria.
+- [x] Update `docs/SPEC.md`, including retiring the non-goal that the overlay
       carries no controls.
-- [ ] Run `pnpm test`, `pnpm lint`, and `pnpm format`.
+- [x] Run `pnpm test`, `pnpm lint`, and `pnpm format`.
 
 ## Implementation notes
 

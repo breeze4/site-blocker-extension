@@ -21,6 +21,7 @@ const {
   grantResetTokenIfEarned,
   secondsUntilTokenReady,
   spendResetToken,
+  shouldOfferOverlayReset,
 } = require('../src/timer-utils');
 
 describe('Timer Logic', () => {
@@ -751,5 +752,36 @@ describe('spendResetToken', () => {
     const { success, reason } = spendResetToken(timer);
     expect(success).toBe(false);
     expect(reason).toBe('at-cap');
+  });
+});
+
+describe('shouldOfferOverlayReset', () => {
+  test('returns false when no token is held', () => {
+    expect(shouldOfferOverlayReset({ originalTime: 60, timeLeft: 5, resetToken: false })).toBe(false);
+  });
+
+  test('returns true at the bound: 60s cap, 30s left', () => {
+    expect(shouldOfferOverlayReset({ originalTime: 60, timeLeft: 30, resetToken: true })).toBe(true);
+  });
+
+  test('returns false one second above the bound: 60s cap, 31s left', () => {
+    expect(shouldOfferOverlayReset({ originalTime: 60, timeLeft: 31, resetToken: true })).toBe(false);
+  });
+
+  test('returns true for 300s cap, 75s left (bound is 75)', () => {
+    expect(shouldOfferOverlayReset({ originalTime: 300, timeLeft: 75, resetToken: true })).toBe(true);
+  });
+
+  test('returns false for 300s cap, 76s left', () => {
+    expect(shouldOfferOverlayReset({ originalTime: 300, timeLeft: 76, resetToken: true })).toBe(false);
+  });
+
+  test('returns false when token held but budget full', () => {
+    expect(shouldOfferOverlayReset({ originalTime: 60, timeLeft: 60, resetToken: true })).toBe(false);
+  });
+
+  test('returns false when timerData is null/undefined', () => {
+    expect(shouldOfferOverlayReset(null)).toBe(false);
+    expect(shouldOfferOverlayReset(undefined)).toBe(false);
   });
 });

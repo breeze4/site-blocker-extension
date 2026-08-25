@@ -74,7 +74,7 @@ export default [
   },
   {
     // Specific rules for files that use storage-utils functions
-    files: ["src/background.js", "src/content.js", "src/options.js", "src/popup.js"],
+    files: ["src/background.js", "src/content.js", "src/options.js", "src/popup.js", "src/blocked.js"],
     languageOptions: {
       globals: {
         isDebugMode: "readonly",

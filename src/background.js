@@ -396,6 +396,16 @@ async function refreshActiveSessionTimestamp(domain) {
   } catch (error) {}
 }
 
+// Build the URL that navigates a tab to the block page, carrying details
+// about the blocked domain and the origin URL that was denied.
+function buildBlockUrl(domain, originUrl) {
+  const base = chrome.runtime.getURL("blocked.html");
+  const params = new URLSearchParams();
+  params.set("domain", domain);
+  params.set("url", originUrl);
+  return base + "?" + params.toString();
+}
+
 // This function contains the core logic for starting and stopping timers based on the active tab.
 async function handleTimerForTab(tab) {
   debugLog("Handling timer for tab:", tab?.url);
@@ -590,7 +600,7 @@ async function handleTimerForTab(tab) {
 
               // Only redirect if the active tab is on the expired domain
               if (activeDomain === domain) {
-                chrome.tabs.update(activeTab.id, { url: "chrome://newtab" });
+                chrome.tabs.update(activeTab.id, { url: buildBlockUrl(domain, tabs[0].url) });
                 debugLog("Redirected expired tab for domain:", domain);
               }
             }
@@ -609,7 +619,7 @@ async function handleTimerForTab(tab) {
         await saveDomainTimers(domainTimers);
       }
       // If time has already expired, block navigation.
-      chrome.tabs.update(tab.id, { url: "chrome://newtab" });
+      chrome.tabs.update(tab.id, { url: buildBlockUrl(domain, tab.url) });
     }
   } finally {
     handlingTimerForTab = false;
@@ -748,6 +758,19 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
     }
 
     sendResponse({ success: true });
+  } else if (request.action === "blockTab") {
+    // Navigate the requesting tab to the block page. The caller is the content
+    // script, which sends the domain and URL that were denied.
+    try {
+      const blockedUrl = buildBlockUrl(request.domain || "", request.url || "");
+      if (sender && sender.tab && sender.tab.id) {
+        chrome.tabs.update(sender.tab.id, { url: blockedUrl });
+      }
+      sendResponse({ success: true });
+    } catch (error) {
+      debugLog("Error blocking tab:", error);
+      sendResponse({ success: false });
+    }
   }
   return true; // Keep message channel open for async response
 });

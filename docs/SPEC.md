@@ -9,7 +9,7 @@ This document describes the current behavior of the code. It is the source of tr
 Plain JavaScript, no bundler and no build step. The files under `src/` are what ship.
 
 - `background.js` — service worker. The single source of truth for timer state: it watches tabs, runs the per-second countdown, blocks/redirects expired tabs, and accrues time-tracking sessions.
-- `content.js` — content script on every page. Blocks an already-expired page on load, and renders the read-only time-left overlay while a tracked domain has time remaining.
+- `content.js` — content script on every page. On load, sends a `blockTab` message to the worker (which navigates the tab to the block page) when the domain is expired, falling back to an inline body swap if the worker is unreachable. Renders the read-only time-left overlay while a tracked domain has time remaining.
 - `popup.html` / `popup.js` — toolbar popup: at-a-glance status and quick actions for the active tab.
 - `options.html` / `options.js` — full-page settings and the analytics dashboard.
 - `storage-utils.js` — promisified `chrome.storage.local` get/set, shared by every surface.
@@ -92,6 +92,14 @@ A compact browser-action popup — the lightweight everyday entry point — styl
 - Shows the active tab's hostname, its remaining time, and a progress bar of `timeLeft` against `originalTime`, refreshed about once per second while open.
 - Block this site: shown for a trackable, not-yet-tracked page; adds the hostname to `domainTimers` with a default 5-minute limit and the recharge rate inherited from existing domains (falling back to 30s/hr).
 - Edge states: a not-tracked-yet message with the Block button for trackable pages; an informational message for non-trackable pages (`chrome://`, `chrome-extension://`, `about:`, blank).
+
+### Block page (`blocked.html` / `blocked.js`)
+
+- A dedicated extension page displayed when a domain is at or past its limit.
+- The worker navigates the tab to `blocked.html?domain=<domain>&url=<origin>` — no `web_accessible_resources` entry is needed because every navigation is extension-initiated via `chrome.tabs.update`.
+- The page reads the query parameters, looks up the domain's timer from storage, and renders the blocked site's name and an estimate of how long until the budget recharges to the 10% re-entry floor (using `reEntryFloor` and the domain's recharge rate).
+- If the domain is already above the floor, the page shows a "site already usable" message instead of a countdown.
+- The block page is not interactive yet; the spend button arrives in a later slice.
 
 ### Time-left overlay (`content.js`)
 

@@ -81,6 +81,7 @@ function loadBackgroundWithStorage(storage) {
     chrome,
     console,
     URL,
+    URLSearchParams,
     Date,
     Promise,
     crypto: require("crypto").webcrypto,
@@ -485,7 +486,7 @@ describe("background service worker session accounting", () => {
       { id: 1, active: true, url: "https://example.com/feed" }
     );
 
-    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: "chrome://newtab" });
+    expect(chrome.tabs.update).toHaveBeenCalledWith(1, expect.objectContaining({ url: expect.stringContaining("blocked.html?") }));
     expect(intervals).toHaveLength(1);
   });
 
@@ -514,7 +515,7 @@ describe("background service worker session accounting", () => {
       { id: 1, active: true, url: "https://example.com/feed" }
     );
 
-    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: "chrome://newtab" });
+    expect(chrome.tabs.update).toHaveBeenCalledWith(1, expect.objectContaining({ url: expect.stringContaining("blocked.html?") }));
 
     const timeTrackingWrites = savedWrites.filter((write) => write.timeTracking);
     const finalTimeTracking = timeTrackingWrites.at(-1).timeTracking["example.com"];

@@ -19,11 +19,8 @@ The background service worker is the single source of truth for timer state.
   tracked domain in storage, redirects expired tabs to `chrome://newtab`, and
   accrues time-tracking sessions (with idle detection). **It is the only writer
   that decrements `timeLeft`.** Other surfaces only read it.
-- `src/content.js` — content script on `<all_urls>`. Two jobs: (1) on load,
-  replace the page with a blocked message if the domain's time is already gone;
-  (2) render the read-only time-left overlay (a Shadow-DOM pill, top-right)
-  while the domain is actively tracked. It stays live by listening to
-  `chrome.storage.onChanged`, not by polling — the background writes each second.
+- `src/blocked.html` / `blocked.js` — the block page shown when a domain's time is up or it is still below the re-entry floor.
+- `src/content.js` — content script on `<all_urls>`. On load, sends a blockTab message to the worker (falling back to inline body swap) when the domain is expired; renders the read-only time-left overlay (a Shadow-DOM pill, top-right) while the domain is actively tracked. Stays live via `chrome.storage.onChanged`.
 - `src/popup.html` / `popup.js` — toolbar popup: shows status, "block this site",
   and a link to the Options page. Re-reads storage once a second while open.
 - `src/options.html` / `options.js` — full-page settings + analytics dashboard.

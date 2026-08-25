@@ -70,3 +70,10 @@ global.StorageUtils = {
   getFromStorage: jest.fn(() => Promise.resolve(null)),
   setToStorage: jest.fn(() => Promise.resolve())
 };
+
+global.TimerUtils = {
+  reEntryFloor: (ot) => (Number.isFinite(ot) && ot > 0 ? Math.ceil(ot * 0.1) : 0),
+  estimateSecondsUntilFull: () => 0,
+  applyRecharge: () => ({}),
+  decrementTimer: () => ({ timeLeft: 0 }),
+};

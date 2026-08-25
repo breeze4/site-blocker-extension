@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Site Blocked</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f5f5f5;
+      color: #333;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+    .card {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      padding: 32px 40px;
+      max-width: 480px;
+      width: 100%;
+      text-align: center;
+    }
+    h1 { font-size: 22px; margin-bottom: 8px; }
+    .domain { font-weight: 600; color: #d32f2f; word-break: break-all; }
+    .muted { color: #777; font-size: 14px; margin: 12px 0 4px 0; }
+    .estimate { font-size: 15px; margin: 8px 0 16px 0; font-weight: 500; }
+    .ready { color: #2e7d32; font-weight: 500; }
+    .hidden { display: none; }
+    @media (prefers-color-scheme: dark) {
+      body { background-color: #1a1a1a; color: #e0e0e0; }
+      .card { background: #2d2d2d; }
+      .domain { color: #ef5350; }
+      .muted { color: #aaa; }
+      .ready { color: #66bb6a; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Time Is Up</h1>
+    <p>Your time for <span class="domain" id="blockedDomain">&hellip;</span> has run out.</p>
+    <p class="muted">You can return when the budget recharges to the 10% floor.</p>
+    <p id="reentryEstimate" class="estimate"></p>
+    <p id="alreadyReady" class="ready hidden">This site is already usable again. Navigate to it to continue.</p>
+  </div>
+  <script src="storage-utils.js"></script>
+  <script src="timer-utils.js"></script>
+  <script src="blocked.js"></script>
+</body>
+</html>

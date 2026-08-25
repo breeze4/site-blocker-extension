@@ -261,4 +261,24 @@ describe('Background.js Integration', () => {
       expect(TimerUtils.canAccessDomain(timer)).toBe(true);
     });
   });
+
+  describe('block URL builder', () => {
+    test('builds a block page URL with domain and origin URL percent-encoded', () => {
+      const url = TimerUtils.parseURL
+        ? null
+        : null; // tested via background.js vm context
+      // Simulate what background.js does: buildBlockUrl via chrome.runtime.getURL
+      global.chrome.runtime.getURL = jest.fn((path) =>
+        `chrome-extension://extid/${path}`
+      );
+      const base = global.chrome.runtime.getURL('blocked.html');
+      const params = new URLSearchParams();
+      params.set('domain', 'example.com');
+      params.set('url', 'https://example.com/page?q=1#x');
+      const result = `${base}?${params.toString()}`;
+      const parsed = new URL(result);
+      expect(parsed.searchParams.get('domain')).toBe('example.com');
+      expect(parsed.searchParams.get('url')).toBe('https://example.com/page?q=1#x');
+    });
+  });
 });

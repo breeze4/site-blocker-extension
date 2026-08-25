@@ -23,6 +23,8 @@ const designDir = path.join(storeDir, "design-assets");
 const EXTENSION_FILES = [
   "manifest.json",
   "background.js",
+  "blocked.html",
+  "blocked.js",
   "content.js",
   "options.html",
   "options.js",

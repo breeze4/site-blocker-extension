@@ -158,10 +158,24 @@ async function init() {
     const domain = getCurrentDomain();
     const timer = domain ? domainTimers[domain] : null;
 
-    // If this domain has a timer and it's already exhausted, block the page.
+    // If this domain has a timer and it's already exhausted, ask the worker to
+    // navigate to the block page. Fall back to the inline body swap when the
+    // message fails (worker not ready, disconnected, etc.).
     if (timer && !(Number.isFinite(timer.timeLeft) && timer.timeLeft > 0)) {
-      document.body.innerHTML = "<h1>Access Blocked</h1><p>Your time is up for this site.</p>";
-      return;
+      try {
+        await chrome.runtime.sendMessage({
+          action: "blockTab",
+          domain: domain,
+          url: window.location.href,
+        });
+        // Worker handled it; stop here so the page isn't swapped under the
+        // pending navigation.
+        return;
+      } catch (error) {
+        // Message rejected or no listener — fall back to inline block.
+        document.body.innerHTML = "<h1>Access Blocked</h1><p>Your time is up for this site.</p>";
+        return;
+      }
     }
 
     syncOverlay(domainTimers);

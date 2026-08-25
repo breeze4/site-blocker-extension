@@ -298,9 +298,7 @@ async function recordResetTokenSpend(domain) {
   try {
     const timeTracking = (await getTimeTracking()) || {};
     if (!timeTracking[domain]) {
-      timeTracking[domain] = createEmptyTimeTrackingRecord(
-        new Date().toISOString().split("T")[0]
-      );
+      timeTracking[domain] = createEmptyTimeTrackingRecord(new Date().toISOString().split("T")[0]);
     }
     const today = new Date().toISOString().split("T")[0];
     if (!timeTracking[domain].resetTokenSpends) {
@@ -308,8 +306,7 @@ async function recordResetTokenSpend(domain) {
     }
     timeTracking[domain].resetTokenSpends[today] =
       (timeTracking[domain].resetTokenSpends[today] || 0) + 1;
-    timeTracking[domain].allTimeResetSpends =
-      (timeTracking[domain].allTimeResetSpends || 0) + 1;
+    timeTracking[domain].allTimeResetSpends = (timeTracking[domain].allTimeResetSpends || 0) + 1;
     await saveTimeTracking(timeTracking);
   } catch (error) {}
 }

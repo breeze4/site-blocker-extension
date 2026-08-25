@@ -586,9 +586,9 @@ async function renderDomainList() {
           : 0;
       fullInCell.textContent =
         secondsUntilFull > 0
-          ? (TimerUtils && TimerUtils.formatCountdown
-              ? TimerUtils.formatCountdown(secondsUntilFull)
-              : formatTimeTracking(secondsUntilFull))
+          ? TimerUtils && TimerUtils.formatCountdown
+            ? TimerUtils.formatCountdown(secondsUntilFull)
+            : formatTimeTracking(secondsUntilFull)
           : "Full";
 
       // Reset token cell — shows token state and 30d spend count.
@@ -607,9 +607,9 @@ async function renderDomainList() {
               : 0;
           if (secsUntil > 0) {
             tokenCell.textContent =
-            TimerUtils && TimerUtils.formatCountdown
-              ? TimerUtils.formatCountdown(secsUntil)
-              : secsUntil;
+              TimerUtils && TimerUtils.formatCountdown
+                ? TimerUtils.formatCountdown(secsUntil)
+                : secsUntil;
           } else {
             tokenCell.textContent = "—";
           }
@@ -965,7 +965,8 @@ async function initializeGlobalTokenThreshold() {
     const domainTimers = (await StorageUtils.getFromStorage("domainTimers")) || {};
     const domains = Object.keys(domainTimers);
 
-    const currentThreshold = domains.length > 0 ? (domainTimers[domains[0]].tokenThresholdHours || 8) : 8;
+    const currentThreshold =
+      domains.length > 0 ? domainTimers[domains[0]].tokenThresholdHours || 8 : 8;
     const radioToSelect = document.getElementById(`globalThreshold${currentThreshold}`);
     if (radioToSelect) {
       radioToSelect.checked = true;
@@ -1047,9 +1048,9 @@ async function updateTimeDisplays() {
               : 0;
           fullInCell.textContent =
             secondsUntilFull > 0
-              ? (TimerUtils && TimerUtils.formatCountdown
-                  ? TimerUtils.formatCountdown(secondsUntilFull)
-                  : formatTimeTracking(secondsUntilFull))
+              ? TimerUtils && TimerUtils.formatCountdown
+                ? TimerUtils.formatCountdown(secondsUntilFull)
+                : formatTimeTracking(secondsUntilFull)
               : "Full";
         }
 
@@ -1068,9 +1069,9 @@ async function updateTimeDisplays() {
                 : 0;
             if (secsUntil > 0) {
               tokenCell.textContent =
-            TimerUtils && TimerUtils.formatCountdown
-              ? TimerUtils.formatCountdown(secsUntil)
-              : secsUntil;
+                TimerUtils && TimerUtils.formatCountdown
+                  ? TimerUtils.formatCountdown(secsUntil)
+                  : secsUntil;
             } else {
               tokenCell.textContent = "—";
             }

@@ -100,6 +100,8 @@ function createResetTimeTrackingRecord(existingRecord, currentDate) {
     lastResetDate: currentDate,
     currentSessionStart: null,
     lastActiveTimestamp: Date.now(),
+    resetTokenSpends: {},
+    allTimeResetSpends: 0,
   };
 }
 
@@ -270,12 +272,21 @@ document.getElementById("siteForm").addEventListener("submit", async (event) => 
 
       // Add or update the timer for the specified domain.
       // When adding a new timer, timeLeft is set to the originalTime.
+      const thresholdRadio = document.querySelector('input[name="globalTokenThreshold"]:checked');
+      const tokenThresholdHours = thresholdRadio
+        ? parsePositiveInteger(thresholdRadio.value) || 8
+        : 8;
+
       domainTimers[domain] = {
         originalTime: originalTimeInSeconds,
         timeLeft: originalTimeInSeconds, // Set timeLeft to originalTime
         rechargeRate: rechargeRate,
         lastVisitTimestamp: Date.now(),
         expiredMessageLogged: false,
+        isBlocked: false,
+        resetToken: false,
+        tokenThresholdHours,
+        awaySince: Date.now(),
       };
 
       // Save the updated timers back to storage.
@@ -572,6 +583,28 @@ async function renderDomainList() {
           : 0;
       fullInCell.textContent = secondsUntilFull > 0 ? formatTimeTracking(secondsUntilFull) : "Full";
 
+      // Reset token cell — shows token state and 30d spend count.
+      const tokenCell = document.createElement("td");
+      tokenCell.style.textAlign = "center";
+      {
+        const timerEntry = domainTimers[domain];
+        if (timerEntry && timerEntry.resetToken === true) {
+          tokenCell.textContent = "Ready";
+          tokenCell.style.color = "#2e7d32";
+          tokenCell.style.fontWeight = "600";
+        } else {
+          const secsUntil =
+            TimerUtils && TimerUtils.secondsUntilTokenReady
+              ? TimerUtils.secondsUntilTokenReady(timerEntry || {}, Date.now())
+              : 0;
+          if (secsUntil > 0) {
+            tokenCell.textContent = formatTimeTracking(secsUntil);
+          } else {
+            tokenCell.textContent = "—";
+          }
+        }
+      }
+
       // Actions cell (delete and reset tracking buttons)
       const actionsCell = document.createElement("td");
       actionsCell.className = "actions-cell";
@@ -602,6 +635,7 @@ async function renderDomainList() {
       row.appendChild(last30dCell);
       row.appendChild(allTimeCell);
       row.appendChild(fullInCell);
+      row.appendChild(tokenCell);
       row.appendChild(actionsCell);
 
       // Restore save button state if it was previously enabled
@@ -863,6 +897,40 @@ document.getElementById("globalRechargeRateGroup").addEventListener("change", as
   }
 });
 
+// Add event listener for global token threshold changes
+const tokenThresholdGroup = document.getElementById("globalThresholdGroup");
+if (tokenThresholdGroup) {
+  tokenThresholdGroup.addEventListener("change", async () => {
+    const thresholdRadio = document.querySelector('input[name="globalTokenThreshold"]:checked');
+    if (thresholdRadio) {
+      const newThreshold = parsePositiveInteger(thresholdRadio.value);
+      if (newThreshold === null || ![4, 8, 12, 24].includes(newThreshold)) {
+        return;
+      }
+
+      try {
+        const storedDomainTimers = await StorageUtils.getFromStorage("domainTimers");
+        const domainTimers = isPlainRecord(storedDomainTimers) ? storedDomainTimers : {};
+
+        for (const domain in domainTimers) {
+          if (!isPlainRecord(domainTimers[domain])) {
+            continue;
+          }
+          domainTimers[domain].tokenThresholdHours = newThreshold;
+        }
+
+        await StorageUtils.setToStorage({ domainTimers });
+        renderDomainList();
+
+        // Notify the worker so timers re-evaluate with new token rules.
+        try {
+          await chrome.runtime.sendMessage({ action: "timerSettingsChanged" });
+        } catch (error) {}
+      } catch (error) {}
+    }
+  });
+}
+
 // Load and set the current global recharge rate when page loads
 async function initializeGlobalRechargeRate() {
   try {
@@ -873,6 +941,22 @@ async function initializeGlobalRechargeRate() {
       // Use the recharge rate from the first domain (they should all be the same now)
       const currentRechargeRate = domainTimers[domains[0]].rechargeRate || 30;
       const radioToSelect = document.getElementById(`globalRecharge${currentRechargeRate}`);
+      if (radioToSelect) {
+        radioToSelect.checked = true;
+      }
+    }
+  } catch (error) {}
+}
+
+// Load and set the current global token threshold when page loads
+async function initializeGlobalTokenThreshold() {
+  try {
+    const domainTimers = (await StorageUtils.getFromStorage("domainTimers")) || {};
+    const domains = Object.keys(domainTimers);
+
+    if (domains.length > 0) {
+      const currentThreshold = domainTimers[domains[0]].tokenThresholdHours || 8;
+      const radioToSelect = document.getElementById(`globalThreshold${currentThreshold}`);
       if (radioToSelect) {
         radioToSelect.checked = true;
       }
@@ -905,6 +989,7 @@ function handleOnboarding() {
 
 // Initialize when page loads
 initializeGlobalRechargeRate();
+initializeGlobalTokenThreshold();
 handleOnboarding();
 
 // Render the initial list of domains when the options page is loaded.
@@ -953,6 +1038,27 @@ async function updateTimeDisplays() {
               : 0;
           fullInCell.textContent =
             secondsUntilFull > 0 ? formatTimeTracking(secondsUntilFull) : "Full";
+        }
+
+        // Update Reset token (8th column / now 9th)
+        const tokenCell = row.cells[8];
+        if (tokenCell) {
+          const timerEntry = domainTimers[domain];
+          if (timerEntry && timerEntry.resetToken === true) {
+            tokenCell.textContent = "Ready";
+            tokenCell.style.color = "#2e7d32";
+            tokenCell.style.fontWeight = "600";
+          } else {
+            const secsUntil =
+              TimerUtils && TimerUtils.secondsUntilTokenReady
+                ? TimerUtils.secondsUntilTokenReady(timerEntry || {}, Date.now())
+                : 0;
+            if (secsUntil > 0) {
+              tokenCell.textContent = formatTimeTracking(secsUntil);
+            } else {
+              tokenCell.textContent = "—";
+            }
+          }
         }
 
         // Update time tracking columns (4th-7th columns) to include current session time

@@ -52,7 +52,11 @@
     th:nth-child(8), td:nth-child(8) { /* Full In */
       width: 10%;
     }
-    th:nth-child(9), td:nth-child(9) { /* Actions */
+    th:nth-child(9), td:nth-child(9) { /* Reset token */
+      width: 130px;
+      text-align: center;
+    }
+    th:nth-child(10), td:nth-child(10) { /* Actions */
       width: 10%;
     }
     th {
@@ -543,7 +547,30 @@
       </div>
     </div>
     <div id="global-recharge-help" class="sr-only">Choose how fast a site's time budget refills while you are away from it</div>
+    <fieldset>
+    <legend>Token Threshold (applies to all sites)</legend>
+    <div class="radio-group" id="globalThresholdGroup" role="radiogroup" aria-labelledby="global-threshold-help">
+      <div class="radio-option">
+        <input type="radio" id="globalThreshold4" name="globalTokenThreshold" value="4" aria-describedby="global-threshold-help">
+        <label for="globalThreshold4">4 hours<span class="radio-note">absence earns a token</span></label>
+      </div>
+      <div class="radio-option">
+        <input type="radio" id="globalThreshold8" name="globalTokenThreshold" value="8" checked aria-describedby="global-threshold-help">
+        <label for="globalThreshold8">8 hours<span class="radio-note">absence earns a token</span></label>
+      </div>
+      <div class="radio-option">
+        <input type="radio" id="globalThreshold12" name="globalTokenThreshold" value="12" aria-describedby="global-threshold-help">
+        <label for="globalThreshold12">12 hours<span class="radio-note">absence earns a token</span></label>
+      </div>
+      <div class="radio-option">
+        <input type="radio" id="globalThreshold24" name="globalTokenThreshold" value="24" aria-describedby="global-threshold-help">
+        <label for="globalThreshold24">24 hours<span class="radio-note">absence earns a token</span></label>
+      </div>
+    </div>
+    <div id="global-threshold-help" class="sr-only">Choose how many hours of absence earns a reset token for any tracked site</div>
   </fieldset>
+
+</fieldset>
 
   <h2>Add/Update a Site</h2>
   <form id="siteForm" role="form" aria-labelledby="add-site-heading">
@@ -600,6 +627,7 @@
           <th role="columnheader" scope="col">Last 30d</th>
           <th role="columnheader" scope="col">All Time</th>
           <th role="columnheader" scope="col">Full In</th>
+          <th role="columnheader" scope="col">Reset token</th>
           <th role="columnheader" scope="col">Actions</th>
         </tr>
       </thead>

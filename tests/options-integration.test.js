@@ -1083,7 +1083,11 @@ describe('Options.js Integration', () => {
           timeLeft: 300,
           rechargeRate: 30,
           lastVisitTimestamp: expect.any(Number),
-          expiredMessageLogged: false
+          expiredMessageLogged: false,
+          isBlocked: false,
+          resetToken: false,
+          tokenThresholdHours: 8,
+          awaySince: expect.any(Number),
         }
       });
     });
@@ -1182,3 +1186,88 @@ describe('Options.js Integration', () => {
     });
   });
 });
+
+  describe('token column rendering', () => {
+    beforeEach(() => {
+      jest.resetModules();
+      jest.useFakeTimers();
+      document.body.innerHTML = '';
+      // Build the essential structure options.js needs.
+      const div = document.createElement('div');
+      div.innerHTML = '<div id="globalRechargeRateGroup"><input type="radio" name="globalRechargeRate" value="30" checked></div><div id="globalThresholdGroup"><input type="radio" name="globalTokenThreshold" value="8" checked></div><form id="siteForm"><input id="urlInput"><input type="radio" name="timeAllowed" value="5" checked></form><table><thead><tr><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th></tr></thead><tbody id="domainListBody"></tbody></table><button id="resetAllTrackingButton"></button>';
+      document.body.appendChild(div);
+    });
+    afterEach(() => {
+      jest.useRealTimers();
+      jest.resetModules();
+    });
+
+    test('rendered row has 10 cells with Actions last', async () => {
+      global.StorageUtils.getFromStorage = jest.fn((key) => {
+        if (key === 'domainTimers') {
+          return Promise.resolve({
+            'example.com': {
+              originalTime: 300, timeLeft: 150, rechargeRate: 30,
+              lastVisitTimestamp: Date.now(), expiredMessageLogged: false,
+              isBlocked: false, resetToken: true, tokenThresholdHours: 8,
+              awaySince: Date.now(),
+            },
+          });
+        }
+        return Promise.resolve(null);
+      });
+      global.StorageUtils.setToStorage = jest.fn(() => Promise.resolve());
+      global.chrome.runtime.sendMessage = jest.fn(() => Promise.resolve());
+
+      require('../src/options.js');
+      for (let i = 0; i < 10; i++) { await Promise.resolve(); }
+
+      const rows = document.querySelectorAll('#domainListBody tr');
+      expect(rows.length).toBeGreaterThan(0);
+      const row = rows[0];
+      expect(row.cells.length).toBe(10);
+      expect(row.cells[9].textContent).toContain('Delete');
+    });
+
+    test('token cell reads "Ready" when token held', async () => {
+      global.StorageUtils.getFromStorage = jest.fn((key) => {
+        if (key === 'domainTimers') {
+          return Promise.resolve({
+            'example.com': {
+              originalTime: 300, timeLeft: 150, rechargeRate: 30,
+              lastVisitTimestamp: Date.now(), expiredMessageLogged: false,
+              isBlocked: false, resetToken: true, tokenThresholdHours: 8,
+              awaySince: Date.now(),
+            },
+          });
+        }
+        return Promise.resolve(null);
+      });
+      require('../src/options.js');
+      for (let i = 0; i < 10; i++) { await Promise.resolve(); }
+      const rows = document.querySelectorAll('#domainListBody tr');
+      expect(rows.length).toBeGreaterThan(0);
+      expect(rows[0].cells[8].textContent).toBe('Ready');
+    });
+
+    test('token cell shows — when no token', async () => {
+      global.StorageUtils.getFromStorage = jest.fn((key) => {
+        if (key === 'domainTimers') {
+          return Promise.resolve({
+            'example.com': {
+              originalTime: 300, timeLeft: 150, rechargeRate: 30,
+              lastVisitTimestamp: Date.now(), expiredMessageLogged: false,
+              isBlocked: false, resetToken: false, tokenThresholdHours: 8,
+              awaySince: Date.now() - 9 * 60 * 60 * 1000,
+            },
+          });
+        }
+        return Promise.resolve(null);
+      });
+      require('../src/options.js');
+      for (let i = 0; i < 10; i++) { await Promise.resolve(); }
+      const rows = document.querySelectorAll('#domainListBody tr');
+      expect(rows.length).toBeGreaterThan(0);
+      expect(rows[0].cells[8].textContent).toBe('\u2014');
+    });
+  });

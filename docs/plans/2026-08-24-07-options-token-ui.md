@@ -39,31 +39,31 @@ AFK
 
 ## Acceptance criteria
 
-- [ ] The domain table renders 10 header cells in this order: Domain, Time
+- [x] The domain table renders 10 header cells in this order: Domain, Time
       Allowed, Time Left, Last 24h, Last 7d, Last 30d, All Time, Full In, Reset
       token, Actions. A test asserts the header text in order.
-- [ ] The column-width rules target the new positions: the Reset token column is
+- [x] The column-width rules target the new positions: the Reset token column is
       the ninth child and Actions is the tenth. A test asserts a rendered row has
       10 cells with Actions last.
-- [ ] The Reset token cell reads "Ready" when a token is held, and otherwise the
+- [x] The Reset token cell reads "Ready" when a token is held, and otherwise the
       remaining wait derived from `secondsUntilTokenReady`. Tests cover both.
-- [ ] The Reset token cell shows the 30-day spend count for the domain, and shows
+- [x] The Reset token cell shows the 30-day spend count for the domain, and shows
       it as zero for a domain with no recorded spends.
-- [ ] Choosing a token threshold rewrites `tokenThresholdHours` for every tracked
+- [x] Choosing a token threshold rewrites `tokenThresholdHours` for every tracked
       domain and notifies the worker, verified the same way the recharge-rate
       group is verified.
-- [ ] The threshold group initializes from stored data on load, falling back to 8
+- [x] The threshold group initializes from stored data on load, falling back to 8
       when domains disagree or none exist.
-- [ ] Adding a domain writes `tokenThresholdHours`, `resetToken: false`,
+- [x] Adding a domain writes `tokenThresholdHours`, `resetToken: false`,
       `isBlocked: false`, and an `awaySince` timestamp alongside the existing
       fields.
-- [ ] Reset Tracking, for one domain and for all domains, clears
+- [x] Reset Tracking, for one domain and for all domains, clears
       `resetTokenSpends` and `allTimeResetSpends` while preserving
       `trackingStartDate`, and a test asserts timer settings are untouched.
-- [ ] The once-per-second refresh updates the Reset token cell alongside Time Left
+- [x] The once-per-second refresh updates the Reset token cell alongside Time Left
       and Full In, and a test asserts an in-progress time-limit edit is not
       disturbed by the refresh.
-- [ ] `pnpm test` passes and `pnpm lint` reports no new errors.
+- [x] `pnpm test` passes and `pnpm lint` reports no new errors.
 
 ## Owns
 
@@ -106,19 +106,19 @@ the `timeTracking` spend fields defined by earlier plans.
 
 ## Tasks
 
-- [ ] Group the recharge-rate radios and a new token-threshold radiogroup under
+- [x] Group the recharge-rate radios and a new token-threshold radiogroup under
       one heading that names what they share, with help text for each.
-- [ ] Add the threshold change listener and the initializer, mirroring the
+- [x] Add the threshold change listener and the initializer, mirroring the
       recharge-rate pair.
-- [ ] Add the Reset token header between Full In and Actions, and shift the
+- [x] Add the Reset token header between Full In and Actions, and shift the
       column-width rules by one.
-- [ ] Render the new cell with the token state and the 30-day spend count.
-- [ ] Include the new cell in the once-per-second refresh.
-- [ ] Write the new fields in the add-domain path.
-- [ ] Clear both spend fields in the tracking reset record factory.
-- [ ] Write the coverage listed in the acceptance criteria.
-- [ ] Update `docs/SPEC.md`.
-- [ ] Run `pnpm test`, `pnpm lint`, and `pnpm format`.
+- [x] Render the new cell with the token state and the 30-day spend count.
+- [x] Include the new cell in the once-per-second refresh.
+- [x] Write the new fields in the add-domain path.
+- [x] Clear both spend fields in the tracking reset record factory.
+- [x] Write the coverage listed in the acceptance criteria.
+- [x] Update `docs/SPEC.md`.
+- [x] Run `pnpm test`, `pnpm lint`, and `pnpm format`.
 
 ## Implementation notes
 

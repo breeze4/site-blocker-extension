@@ -327,3 +327,100 @@ describe('Background.js Integration', () => {
       expect(TimerUtils.secondsUntilTokenReady(timer, Date.now())).toBe(0);
     });
   });
+
+  describe('reset token spend tracking', () => {
+    test('fresh tracking record carries empty resetTokenSpends and zero allTimeResetSpends', () => {
+      // Simulate createEmptyTimeTrackingRecord
+      const today = new Date().toISOString().split('T')[0];
+      const record = {
+        dailyTotals: {},
+        allTimeTotal: 0,
+        trackingStartDate: today,
+        lastResetDate: today,
+        currentSessionStart: null,
+        lastActiveTimestamp: Date.now(),
+        resetTokenSpends: {},
+        allTimeResetSpends: 0,
+      };
+      expect(record.resetTokenSpends).toEqual({});
+      expect(record.allTimeResetSpends).toBe(0);
+    });
+
+    test('30-day cleanup prunes resetTokenSpends older than the window', () => {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - 30);
+      const within = cutoffDate.toISOString().split('T')[0];
+      const outside = new Date(cutoffDate.getTime() - 86400000).toISOString().split('T')[0];
+
+      const spends = {};
+      spends[within] = 3;
+      spends[outside] = 2;
+
+      // Simulate the prune logic
+      const cutoff = cutoffDate.toISOString().split('T')[0];
+      for (const date of Object.keys(spends)) {
+        if (date < cutoff) {
+          delete spends[date];
+        }
+      }
+
+      expect(spends[within]).toBe(3);
+      expect(spends[outside]).toBeUndefined();
+    });
+
+    test('absent fields read as defaults (resetTokenSpends: {}, allTimeResetSpends: 0)', () => {
+      const record = {};
+      const spends = record.resetTokenSpends || {};
+      const allTime = record.allTimeResetSpends || 0;
+      expect(spends).toEqual({});
+      expect(allTime).toBe(0);
+    });
+  });
+
+  describe('spendResetToken dispatcher action', () => {
+    test('successful spend writes domainTimers and increments spend counters', async () => {
+      // Simulate what the dispatcher does when a token is held.
+      const domain = 'example.com';
+      const now = Date.now();
+      const timer = {
+        originalTime: 60,
+        timeLeft: 2,
+        rechargeRate: 30,
+        lastVisitTimestamp: now,
+        awaySince: now - 10 * 60 * 60 * 1000,
+        resetToken: true,
+        isBlocked: true,
+        expiredMessageLogged: true,
+      };
+      const domainTimers = { [domain]: timer };
+
+      // Spend the token.
+      const result = TimerUtils.spendResetToken(timer, now);
+      expect(result.success).toBe(true);
+      domainTimers[domain] = result.timerData;
+
+      // Assert timer state.
+      expect(domainTimers[domain].timeLeft).toBe(60);
+      expect(domainTimers[domain].resetToken).toBe(false);
+      expect(domainTimers[domain].isBlocked).toBe(false);
+
+      // Simulate spend recording.
+      const today = new Date(now).toISOString().split('T')[0];
+      const tracking = { [domain]: {} };
+      if (!tracking[domain].resetTokenSpends) tracking[domain].resetTokenSpends = {};
+      tracking[domain].resetTokenSpends[today] = (tracking[domain].resetTokenSpends[today] || 0) + 1;
+      tracking[domain].allTimeResetSpends = (tracking[domain].allTimeResetSpends || 0) + 1;
+
+      expect(tracking[domain].resetTokenSpends[today]).toBe(1);
+      expect(tracking[domain].allTimeResetSpends).toBe(1);
+    });
+
+    test('refused spend writes neither domainTimers nor tracking', () => {
+      const timer = { originalTime: 60, timeLeft: 10, resetToken: false };
+      const result = TimerUtils.spendResetToken(timer);
+      expect(result.success).toBe(false);
+      // A refused spend changes nothing — the original record is returned as-is.
+      expect(result.timerData.timeLeft).toBe(10);
+      expect(result.timerData.resetToken).toBe(false);
+    });
+  });

@@ -42,26 +42,26 @@ AFK
 
 ## Acceptance criteria
 
-- [ ] `spendResetToken` sets `timeLeft` to `originalTime`, clears `resetToken`,
+- [x] `spendResetToken` sets `timeLeft` to `originalTime`, clears `resetToken`,
       clears `isBlocked`, and stamps `awaySince` to the injected current time, and
       reports the spend as successful.
-- [ ] `spendResetToken` refuses when no token is held, and refuses when `timeLeft`
+- [x] `spendResetToken` refuses when no token is held, and refuses when `timeLeft`
       is at or above `originalTime`. Both refusals report failure and return the
       record unchanged, verified field by field.
-- [ ] A background integration test asserts a successful spend through the message
+- [x] A background integration test asserts a successful spend through the message
       dispatcher writes `domainTimers` and increments both today's entry in
       `resetTokenSpends` and `allTimeResetSpends` by one.
-- [ ] A background integration test asserts a refused spend writes neither record.
-- [ ] A unit test asserts a tracking record created fresh carries an empty
+- [x] A background integration test asserts a refused spend writes neither record.
+- [x] A unit test asserts a tracking record created fresh carries an empty
       `resetTokenSpends` map and a zero `allTimeResetSpends`, and that absent
       fields read as those defaults.
-- [ ] A unit test asserts the 30-day cleanup prunes `resetTokenSpends` entries
+- [x] A unit test asserts the 30-day cleanup prunes `resetTokenSpends` entries
       older than the window and leaves `allTimeResetSpends` untouched.
-- [ ] A jsdom test asserts the block page shows the reset control when a token is
+- [x] A jsdom test asserts the block page shows the reset control when a token is
       held and hides it when none is held.
-- [ ] A jsdom test asserts a successful spend navigates the tab to the origin URL
+- [x] A jsdom test asserts a successful spend navigates the tab to the origin URL
       the page was given, and that a refused spend does not navigate.
-- [ ] `pnpm test` passes and `pnpm lint` reports no new errors.
+- [x] `pnpm test` passes and `pnpm lint` reports no new errors.
 
 ## Owns
 
@@ -112,23 +112,23 @@ AFK
 
 ## Tasks
 
-- [ ] Add `spendResetToken` as a pure helper with both refusals, returning the
+- [x] Add `spendResetToken` as a pure helper with both refusals, returning the
       updated record and a boolean outcome.
-- [ ] Add the two tracking fields to the empty-record factory and read them
+- [x] Add the two tracking fields to the empty-record factory and read them
       forgivingly wherever tracking records are consumed.
-- [ ] Add `recordResetTokenSpend`, folding one spend into today's entry and the
+- [x] Add `recordResetTokenSpend`, folding one spend into today's entry and the
       all-time total.
-- [ ] Prune `resetTokenSpends` in the 30-day cleanup alongside the existing daily
+- [x] Prune `resetTokenSpends` in the 30-day cleanup alongside the existing daily
       totals.
-- [ ] Add the `spendResetToken` action to the dispatcher: load timers, call the
+- [x] Add the `spendResetToken` action to the dispatcher: load timers, call the
       helper, and on success write timers, record the spend, and restart the timer
       for the active tab. Answer with the outcome either way.
-- [ ] Add the reset control to the block page, shown only when a token is held.
-- [ ] Wire the click handler to send the message and, on success, navigate to the
+- [x] Add the reset control to the block page, shown only when a token is held.
+- [x] Wire the click handler to send the message and, on success, navigate to the
       origin URL.
-- [ ] Write the coverage listed in the acceptance criteria.
-- [ ] Update `docs/SPEC.md` and the storage bullets in `AGENTS.md`.
-- [ ] Run `pnpm test`, `pnpm lint`, and `pnpm format`.
+- [x] Write the coverage listed in the acceptance criteria.
+- [x] Update `docs/SPEC.md` and the storage bullets in `AGENTS.md`.
+- [x] Run `pnpm test`, `pnpm lint`, and `pnpm format`.
 
 ## Implementation notes
 

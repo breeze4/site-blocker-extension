@@ -111,6 +111,8 @@ describe("block page rendering", () => {
       <span id="blockedDomain"></span>
       <p id="reentryEstimate" class="estimate"></p>
       <p id="alreadyReady" class="ready hidden"></p>
+      <button id="resetButton" class="primary-button full-width hidden">Reset Timer</button>
+      <p id="resetError" class="muted hidden"></p>
     `;
   });
 
@@ -178,5 +180,92 @@ describe("block page rendering", () => {
     await render();
 
     expect(document.getElementById("blockedDomain").textContent).toBe("this site");
+  });
+});
+describe("block page reset control", () => {
+  beforeEach(() => {
+    jest.resetModules();
+    global.StorageUtils = {
+      getFromStorage: jest.fn(() => Promise.resolve(null)),
+      setToStorage: jest.fn(() => Promise.resolve()),
+    };
+    global.chrome.runtime.sendMessage = jest.fn(() => Promise.resolve({ success: true }));
+    document.body.innerHTML = `
+      <span id="blockedDomain"></span>
+      <p id="reentryEstimate" class="estimate"></p>
+      <p id="alreadyReady" class="ready hidden"></p>
+      <button id="resetButton" class="primary-button full-width hidden">Reset Timer</button>
+      <p id="resetError" class="muted hidden"></p>
+    `;
+  });
+
+  test("shows reset button when a token is held", async () => {
+    window.history.replaceState({}, "", "?domain=token.com&url=https://token.com");
+    global.StorageUtils.getFromStorage = jest.fn((key) => {
+      if (key === "domainTimers") {
+        return Promise.resolve({
+          "token.com": {
+            originalTime: 60,
+            timeLeft: 2,
+            rechargeRate: 30,
+            resetToken: true,
+          },
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    const { render } = require("../src/blocked.js");
+    await render();
+
+    const button = document.getElementById("resetButton");
+    expect(button.classList.contains("hidden")).toBe(false);
+  });
+
+  test("hides reset button when no token is held", async () => {
+    window.history.replaceState({}, "", "?domain=notoken.com&url=https://notoken.com");
+    global.StorageUtils.getFromStorage = jest.fn((key) => {
+      if (key === "domainTimers") {
+        return Promise.resolve({
+          "notoken.com": {
+            originalTime: 60,
+            timeLeft: 2,
+            rechargeRate: 30,
+            resetToken: false,
+          },
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    const { render } = require("../src/blocked.js");
+    await render();
+
+    const button = document.getElementById("resetButton");
+    expect(button.classList.contains("hidden")).toBe(true);
+  });
+
+  test("successful spend navigates to origin URL", async () => {
+    window.history.replaceState({}, "", "?domain=go.com&url=https://go.com/page");
+    global.chrome.runtime.sendMessage.mockResolvedValue({ success: true });
+
+    const { handleReset } = require("../src/blocked.js");
+    await handleReset();
+
+    expect(global.chrome.runtime.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "spendResetToken", domain: "go.com" })
+    );
+  });
+
+  test("refused spend shows error and does not navigate", async () => {
+    window.history.replaceState({}, "", "?domain=no.com&url=https://no.com");
+    global.chrome.runtime.sendMessage.mockResolvedValue({ success: false, reason: "no-token" });
+
+    const { handleReset } = require("../src/blocked.js");
+    await handleReset();
+
+    const errorEl = document.getElementById("resetError");
+    expect(errorEl.classList.contains("hidden")).toBe(false);
+    expect(errorEl.textContent).toBe("No token available.");
   });
 });

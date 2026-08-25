@@ -392,6 +392,44 @@ function secondsUntilTokenReady(timerData, currentTime = Date.now()) {
   return remaining > 0 ? Math.ceil(remaining / 1000) : 0;
 }
 
+/**
+ * Spend a held reset token: refill the budget to its cap, clear the token and
+ * blocked state, and stamp awaySince to now. Returns the updated record and a
+ * success flag. Refuses when no token is held or when the budget is already at
+ * or above the cap.
+ * @param {Object} timerData
+ * @param {number} currentTime
+ * @returns {{ timerData: Object, success: boolean, reason: string }}
+ */
+function spendResetToken(timerData, currentTime = Date.now()) {
+  const originalTime =
+    Number.isFinite(timerData.originalTime) && timerData.originalTime > 0
+      ? timerData.originalTime
+      : 0;
+  const timeLeft = Number.isFinite(timerData.timeLeft) ? timerData.timeLeft : 0;
+
+  if (timerData.resetToken !== true) {
+    return { timerData: { ...timerData }, success: false, reason: "no-token" };
+  }
+  if (timeLeft >= originalTime) {
+    return { timerData: { ...timerData }, success: false, reason: "at-cap" };
+  }
+
+  return {
+    timerData: {
+      ...timerData,
+      timeLeft: originalTime,
+      resetToken: false,
+      isBlocked: false,
+      awaySince: currentTime,
+      expiredMessageLogged: false,
+      lastVisitTimestamp: currentTime,
+    },
+    success: true,
+    reason: null,
+  };
+}
+
 // Export for Node.js (testing) environment
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
@@ -411,6 +449,7 @@ if (typeof module !== "undefined" && module.exports) {
     normalizeTokenThresholdHours,
     grantResetTokenIfEarned,
     secondsUntilTokenReady,
+    spendResetToken,
   };
 } else if (typeof window !== "undefined") {
   // Browser environment - make functions globally available
@@ -431,6 +470,7 @@ if (typeof module !== "undefined" && module.exports) {
     normalizeTokenThresholdHours,
     grantResetTokenIfEarned,
     secondsUntilTokenReady,
+    spendResetToken,
   };
 } else {
   // Service worker environment - make functions globally available
@@ -451,5 +491,6 @@ if (typeof module !== "undefined" && module.exports) {
     normalizeTokenThresholdHours,
     grantResetTokenIfEarned,
     secondsUntilTokenReady,
+    spendResetToken,
   };
 }

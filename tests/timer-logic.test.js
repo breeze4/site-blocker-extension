@@ -20,6 +20,7 @@ const {
   normalizeTokenThresholdHours,
   grantResetTokenIfEarned,
   secondsUntilTokenReady,
+  spendResetToken,
 } = require('../src/timer-utils');
 
 describe('Timer Logic', () => {
@@ -701,5 +702,54 @@ describe('token earning helpers', () => {
 
     const ready = { awaySince: now - 10 * 60 * 60 * 1000, tokenThresholdHours: 8, resetToken: false };
     expect(secondsUntilTokenReady(ready, now)).toBe(0);
+  });
+});
+
+describe('spendResetToken', () => {
+  test('refills budget to cap, clears token, isBlocked, and stamps awaySince', () => {
+    const now = Date.now();
+    const timer = {
+      originalTime: 60,
+      timeLeft: 2,
+      rechargeRate: 30,
+      lastVisitTimestamp: now - 3600000,
+      awaySince: now - 3600000,
+      resetToken: true,
+      isBlocked: true,
+      expiredMessageLogged: true,
+    };
+    const { timerData, success } = spendResetToken(timer, now);
+    expect(success).toBe(true);
+    expect(timerData.timeLeft).toBe(60);
+    expect(timerData.resetToken).toBe(false);
+    expect(timerData.isBlocked).toBe(false);
+    expect(timerData.awaySince).toBe(now);
+    expect(timerData.expiredMessageLogged).toBe(false);
+    expect(timerData.lastVisitTimestamp).toBe(now);
+  });
+
+  test('refuses when no token is held, returns unchanged field by field', () => {
+    const timer = { originalTime: 60, timeLeft: 10, resetToken: false };
+    const { timerData, success, reason } = spendResetToken(timer);
+    expect(success).toBe(false);
+    expect(reason).toBe('no-token');
+    expect(timerData.timeLeft).toBe(10);
+    expect(timerData.resetToken).toBe(false);
+  });
+
+  test('refuses when budget at cap, returns unchanged', () => {
+    const timer = { originalTime: 60, timeLeft: 60, resetToken: true };
+    const { timerData, success, reason } = spendResetToken(timer);
+    expect(success).toBe(false);
+    expect(reason).toBe('at-cap');
+    expect(timerData.timeLeft).toBe(60);
+    expect(timerData.resetToken).toBe(true);
+  });
+
+  test('refuses when budget above cap (corrupted)', () => {
+    const timer = { originalTime: 60, timeLeft: 120, resetToken: true };
+    const { success, reason } = spendResetToken(timer);
+    expect(success).toBe(false);
+    expect(reason).toBe('at-cap');
   });
 });

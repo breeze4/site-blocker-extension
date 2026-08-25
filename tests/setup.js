@@ -76,4 +76,5 @@ global.TimerUtils = {
   estimateSecondsUntilFull: () => 0,
   applyRecharge: () => ({}),
   decrementTimer: () => ({ timeLeft: 0 }),
+  spendResetToken: () => ({ timerData: {}, success: true, reason: null }),
 };

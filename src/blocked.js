@@ -85,6 +85,50 @@ function estimateSecondsUntilReentry(originalTime, timeLeft, rechargeRate) {
 }
 
 /**
+ * Handle a click on the Reset Timer button. Sends the spend token message to
+ * the worker, and on success, navigates back to the origin URL that was
+ * blocked.
+ */
+async function handleReset() {
+  const { domain, originUrl } = readBlockParams();
+  const errorEl = document.getElementById("resetError");
+  if (errorEl) {
+    errorEl.classList.add("hidden");
+  }
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: "spendResetToken",
+      domain,
+    });
+    if (response && response.success) {
+      if (originUrl) {
+        window.location.href = originUrl;
+      } else {
+        document.getElementById("resetButton").classList.add("hidden");
+        document.getElementById("reentryEstimate").classList.add("hidden");
+        document.getElementById("alreadyReady").classList.remove("hidden");
+        document.getElementById("alreadyReady").textContent =
+          "Budget restored. Navigate to the site to continue.";
+      }
+    } else {
+      if (errorEl) {
+        errorEl.textContent =
+          response && response.reason === "at-cap"
+            ? "Budget is already full."
+            : "No token available.";
+        errorEl.classList.remove("hidden");
+      }
+    }
+  } catch (_) {
+    if (errorEl) {
+      errorEl.textContent = "Unable to reset timer.";
+      errorEl.classList.remove("hidden");
+    }
+  }
+}
+
+/**
  * Render the block page. Shows domain name and estimates time until the site is
  * usable again, or shows "already ready" if the floor has been reached.
  */
@@ -122,6 +166,15 @@ async function render() {
       document.getElementById("reentryEstimate").textContent =
         "Available again in about " + formatDuration(secondsUntil) + ".";
     }
+
+    // Show the reset button only when a token is held.
+    const resetButton = document.getElementById("resetButton");
+    if (timer.resetToken === true) {
+      resetButton.classList.remove("hidden");
+      resetButton.addEventListener("click", handleReset);
+    } else {
+      resetButton.classList.add("hidden");
+    }
   } catch (_) {
     document.getElementById("reentryEstimate").textContent = "Unable to read timer data.";
   }
@@ -139,5 +192,6 @@ if (typeof module !== "undefined" && module.exports) {
     formatDuration,
     estimateSecondsUntilReentry,
     render,
+    handleReset,
   };
 }

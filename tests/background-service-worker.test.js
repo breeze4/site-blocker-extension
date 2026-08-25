@@ -564,6 +564,8 @@ describe("background service worker session accounting", () => {
       lastResetDate: "2026-06-05",
       currentSessionStart: Date.now(),
       lastActiveTimestamp: Date.now(),
+      resetTokenSpends: {},
+      allTimeResetSpends: 0,
     });
     expect(finalStorage.timeTracking["example.com"]).toEqual(finalTimeTracking);
   });

@@ -132,6 +132,8 @@ function createEmptyTimeTrackingRecord(currentDate) {
     lastResetDate: currentDate,
     currentSessionStart: null,
     lastActiveTimestamp: Date.now(),
+    resetTokenSpends: {},
+    allTimeResetSpends: 0,
   };
 }
 
@@ -291,6 +293,27 @@ async function calculateTimeSpent(domain, period) {
 }
 
 // Clean up daily tracking data older than 30 days to keep storage efficient
+// Increment the daily and all-time reset token spend counters for a domain.
+async function recordResetTokenSpend(domain) {
+  try {
+    const timeTracking = (await getTimeTracking()) || {};
+    if (!timeTracking[domain]) {
+      timeTracking[domain] = createEmptyTimeTrackingRecord(
+        new Date().toISOString().split("T")[0]
+      );
+    }
+    const today = new Date().toISOString().split("T")[0];
+    if (!timeTracking[domain].resetTokenSpends) {
+      timeTracking[domain].resetTokenSpends = {};
+    }
+    timeTracking[domain].resetTokenSpends[today] =
+      (timeTracking[domain].resetTokenSpends[today] || 0) + 1;
+    timeTracking[domain].allTimeResetSpends =
+      (timeTracking[domain].allTimeResetSpends || 0) + 1;
+    await saveTimeTracking(timeTracking);
+  } catch (error) {}
+}
+
 async function cleanupOldTimeTrackingData() {
   try {
     const timeTracking = (await getTimeTracking()) || {};
@@ -314,6 +337,16 @@ async function cleanupOldTimeTrackingData() {
 
         const newCount = Object.keys(data.dailyTotals).length;
         if (originalCount !== newCount) {
+        }
+
+        // Prune reset token spend entries older than 30 days.
+        if (data.resetTokenSpends) {
+          for (const dateString of Object.keys(data.resetTokenSpends)) {
+            if (dateString < cutoffDate) {
+              delete data.resetTokenSpends[dateString];
+              dataChanged = true;
+            }
+          }
         }
       }
     }
@@ -801,6 +834,42 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
     } catch (error) {
       debugLog("Error blocking tab:", error);
       sendResponse({ success: false });
+    }
+  } else if (request.action === "spendResetToken") {
+    // Spend a held reset token on a domain. Only the worker writes timer state.
+    try {
+      const domain = typeof request.domain === "string" ? request.domain : "";
+      const domainTimers = (await getDomainTimers()) || {};
+      const timer = domainTimers[domain];
+
+      if (!timer || typeof TimerUtils === "undefined" || !TimerUtils.spendResetToken) {
+        sendResponse({ success: false, reason: "unavailable" });
+        return true;
+      }
+
+      const { timerData, success, reason } = TimerUtils.spendResetToken(timer, Date.now());
+      domainTimers[domain] = timerData;
+      await saveDomainTimers(domainTimers);
+
+      if (success) {
+        await recordResetTokenSpend(domain);
+
+        // Restart the timer for the current active tab so the refilled budget
+        // takes effect immediately.
+        try {
+          const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (tabs.length > 0) {
+            await handleTimerForTab(tabs[0]);
+          }
+        } catch (error) {
+          debugLog("Error restarting timer after spend:", error);
+        }
+      }
+
+      sendResponse({ success, reason });
+    } catch (error) {
+      debugLog("Error spending reset token:", error);
+      sendResponse({ success: false, reason: "error" });
     }
   }
   return true; // Keep message channel open for async response

@@ -34,8 +34,7 @@ The background service worker is the single source of truth for timer state.
 
 ## Storage model (in `chrome.storage.local`)
 
-- `domainTimers` — per-domain `{ originalTime, timeLeft, resetInterval,
-  lastResetTimestamp, expiredMessageLogged }` (seconds / hours / ms).
+- `domainTimers` — per-domain `{ originalTime, timeLeft, rechargeRate, lastVisitTimestamp, expiredMessageLogged, isBlocked, resetToken, tokenThresholdHours, awaySince }` (seconds / hours / ms).
 - `timeTracking` — per-domain daily totals + all-time + session bookkeeping.
 
 Full field-by-field docs live in `docs/SPEC.md`.

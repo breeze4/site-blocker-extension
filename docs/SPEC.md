@@ -113,6 +113,14 @@ A passive, on-page indicator so remaining time is visible while browsing without
 
 - The code is shown only on the Options page (Copy / Regenerate). The generator is a pure function in `timer-utils.js` so it is unit-testable. See Non-Goals for the rationale and security posture.
 
+## Reset tokens
+
+A per-domain reset token is the single earned way to top up a budget. A token is granted when a domain has been left alone for its full threshold (`tokenThresholdHours`, default 8; ladder 4/8/12/24). Holding a token lets the user refill the budget to its cap, once; spending it clears it.
+
+- The away clock is `awaySince`. Any visit refreshes it, so a peek inside the threshold restarts the absence. `lastVisitTimestamp` remains the recharge clock and is deliberately separate.
+- Tokens never stack, never bank, and never transfer. A full budget does not block a grant; the spend path refuses a spend that would gain nothing.
+- Granting happens in the worker's tab pass after recharge, before the blocked-state update.
+
 ## Storage data models
 
 All state lives in `chrome.storage.local`. It is per-device and per-profile; it is not `chrome.storage.sync` and does not sync across devices. All reads are wrapped in try/catch with sensible defaults so the extension degrades gracefully.
@@ -129,7 +137,10 @@ Per-domain timer configuration and current state.
     "rechargeRate": 30,            // seconds restored per hour away (30, 60, 120, 300, 600, 900)
     "lastVisitTimestamp": 1691856000000, // ms — last moment this was the active focused tab; the recharge clock
     "expiredMessageLogged": false, // dedupes the post-expiry debug log
-    "isBlocked": false             // set true at countdown zero; cleared when recharge reaches 10% of cap
+    "isBlocked": false,            // set true at countdown zero; cleared when recharge reaches 10% of cap
+    "resetToken": false,           // held single-token flag; granted after a full absence
+    "tokenThresholdHours": 8,      // hours of absence needed to earn a token (4/8/12/24)
+    "awaySince": 1691856000000     // ms — last moment the domain was visited; the token clock
   }
 }
 ```

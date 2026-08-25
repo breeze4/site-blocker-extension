@@ -329,6 +329,69 @@ function canAccessDomain(timerData) {
   return timeLeft > 0 && !isBlocked;
 }
 
+/**
+ * Normalize a token threshold in hours. The allowed ladder is 4/8/12/24;
+ * anything missing, zero, negative, non-finite, or non-numeric defaults to 8.
+ * @param {number} hours - Candidate threshold
+ * @returns {number} A threshold on the ladder
+ */
+function normalizeTokenThresholdHours(hours) {
+  const ladder = [4, 8, 12, 24];
+  return ladder.includes(hours) ? hours : 8;
+}
+
+/**
+ * Grant a reset token to a domain that has been left alone for the full
+ * threshold. A domain that already holds a token returns unchanged, so tokens
+ * never stack. Never mutates; returns a new record.
+ * @param {Object} timerData - Timer data with awaySince, tokenThresholdHours, resetToken, lastVisitTimestamp
+ * @param {number} currentTime - Injected timestamp (for testing)
+ * @returns {Object} New timer record
+ */
+function grantResetTokenIfEarned(timerData, currentTime = Date.now()) {
+  const thresholdHours = normalizeTokenThresholdHours(timerData.tokenThresholdHours);
+  const thresholdMs = thresholdHours * 60 * 60 * 1000;
+  const awaySince =
+    Number.isFinite(timerData.awaySince) && timerData.awaySince > 0
+      ? timerData.awaySince
+      : Number.isFinite(timerData.lastVisitTimestamp) && timerData.lastVisitTimestamp > 0
+        ? timerData.lastVisitTimestamp
+        : currentTime;
+  const held = timerData.resetToken === true;
+  const elapsed = currentTime - awaySince;
+
+  if (!held && elapsed >= thresholdMs) {
+    return { ...timerData, resetToken: true };
+  }
+  return { ...timerData };
+}
+
+/**
+ * Whole seconds until the domain's next token is ready. 0 when a token is
+ * already held, never negative.
+ * @param {Object} timerData - Timer data
+ * @param {number} currentTime - Injected timestamp
+ * @returns {number}
+ */
+function secondsUntilTokenReady(timerData, currentTime = Date.now()) {
+  if (!timerData) {
+    return 0;
+  }
+  if (timerData.resetToken === true) {
+    return 0;
+  }
+  const thresholdHours = normalizeTokenThresholdHours(timerData.tokenThresholdHours);
+  const thresholdMs = thresholdHours * 60 * 60 * 1000;
+  const awaySince =
+    Number.isFinite(timerData.awaySince) && timerData.awaySince > 0
+      ? timerData.awaySince
+      : Number.isFinite(timerData.lastVisitTimestamp) && timerData.lastVisitTimestamp > 0
+        ? timerData.lastVisitTimestamp
+        : currentTime;
+  const remaining = thresholdMs - (currentTime - awaySince);
+  return remaining > 0 ? Math.ceil(remaining / 1000) : 0;
+}
+
 // Export for Node.js (testing) environment
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
@@ -345,6 +408,9 @@ if (typeof module !== "undefined" && module.exports) {
     reEntryFloor,
     updateBlockedState,
     canAccessDomain,
+    normalizeTokenThresholdHours,
+    grantResetTokenIfEarned,
+    secondsUntilTokenReady,
   };
 } else if (typeof window !== "undefined") {
   // Browser environment - make functions globally available
@@ -362,6 +428,9 @@ if (typeof module !== "undefined" && module.exports) {
     reEntryFloor,
     updateBlockedState,
     canAccessDomain,
+    normalizeTokenThresholdHours,
+    grantResetTokenIfEarned,
+    secondsUntilTokenReady,
   };
 } else {
   // Service worker environment - make functions globally available
@@ -379,5 +448,8 @@ if (typeof module !== "undefined" && module.exports) {
     reEntryFloor,
     updateBlockedState,
     canAccessDomain,
+    normalizeTokenThresholdHours,
+    grantResetTokenIfEarned,
+    secondsUntilTokenReady,
   };
 }

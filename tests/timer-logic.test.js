@@ -17,6 +17,9 @@ const {
   reEntryFloor,
   updateBlockedState,
   canAccessDomain,
+  normalizeTokenThresholdHours,
+  grantResetTokenIfEarned,
+  secondsUntilTokenReady,
 } = require('../src/timer-utils');
 
 describe('Timer Logic', () => {
@@ -571,5 +574,132 @@ describe('Timer Logic', () => {
     test('returns true for a normal accessible domain', () => {
       expect(canAccessDomain({ originalTime: 300, timeLeft: 150, isBlocked: false })).toBe(true);
     });
+  });
+});
+
+describe('token earning helpers', () => {
+  test('normalizeTokenThresholdHours defaults to 8 for bad input', () => {
+    expect(normalizeTokenThresholdHours(undefined)).toBe(8);
+    expect(normalizeTokenThresholdHours(null)).toBe(8);
+    expect(normalizeTokenThresholdHours(0)).toBe(8);
+    expect(normalizeTokenThresholdHours(-4)).toBe(8);
+    expect(normalizeTokenThresholdHours(NaN)).toBe(8);
+    expect(normalizeTokenThresholdHours('8')).toBe(8);
+  });
+
+  test('normalizeTokenThresholdHours passes the ladder through', () => {
+    expect(normalizeTokenThresholdHours(4)).toBe(4);
+    expect(normalizeTokenThresholdHours(8)).toBe(8);
+    expect(normalizeTokenThresholdHours(12)).toBe(12);
+    expect(normalizeTokenThresholdHours(24)).toBe(24);
+  });
+
+  test('grantResetTokenIfEarned grants at exactly the threshold', () => {
+    const now = Date.now();
+    const timer = {
+      awaySince: now - 8 * 60 * 60 * 1000,
+      tokenThresholdHours: 8,
+      resetToken: false,
+    };
+    const result = grantResetTokenIfEarned(timer, now);
+    expect(result.resetToken).toBe(true);
+  });
+
+  test('grantResetTokenIfEarned does not grant one ms before threshold', () => {
+    const now = Date.now();
+    const timer = {
+      awaySince: now - (8 * 60 * 60 * 1000 - 1),
+      tokenThresholdHours: 8,
+      resetToken: false,
+    };
+    const result = grantResetTokenIfEarned(timer, now);
+    expect(result.resetToken).toBe(false);
+  });
+
+  test('grantResetTokenIfEarned does not grant twice', () => {
+    const now = Date.now();
+    const timer = {
+      awaySince: now - 20 * 60 * 60 * 1000,
+      tokenThresholdHours: 8,
+      resetToken: true,
+    };
+    const result = grantResetTokenIfEarned(timer, now);
+    expect(result.resetToken).toBe(true);
+    expect(result).toEqual(timer);
+  });
+
+  test('grant happens with a full budget (timeLeft equals originalTime)', () => {
+    const now = Date.now();
+    const timer = {
+      awaySince: now - 8 * 60 * 60 * 1000,
+      tokenThresholdHours: 8,
+      resetToken: false,
+      timeLeft: 300,
+      originalTime: 300,
+    };
+    const result = grantResetTokenIfEarned(timer, now);
+    expect(result.resetToken).toBe(true);
+  });
+
+  test('backwards clock jump never grants a token', () => {
+    const now = Date.now();
+    const timer = {
+      awaySince: now, // clock jumped backwards: awaySince is in the "future"
+      tokenThresholdHours: 8,
+      resetToken: false,
+    };
+    const result = grantResetTokenIfEarned(timer, now - 1000);
+    expect(result.resetToken).toBe(false);
+  });
+
+  test('forgiving reads: absent resetToken reads false', () => {
+    const now = Date.now();
+    const timer = {
+      awaySince: now - 8 * 60 * 60 * 1000,
+      tokenThresholdHours: 8,
+    };
+    const result = grantResetTokenIfEarned(timer, now);
+    expect(result.resetToken).toBe(true);
+  });
+
+  test('forgiving reads: absent tokenThresholdHours reads 8', () => {
+    const now = Date.now();
+    const timer = {
+      awaySince: now - 8 * 60 * 60 * 1000,
+      resetToken: false,
+    };
+    const result = grantResetTokenIfEarned(timer, now);
+    expect(result.resetToken).toBe(true);
+  });
+
+  test('forgiving reads: absent awaySince falls back to lastVisitTimestamp then current time', () => {
+    const now = Date.now();
+    const withLastVisit = {
+      lastVisitTimestamp: now - 8 * 60 * 60 * 1000,
+      resetToken: false,
+    };
+    expect(grantResetTokenIfEarned(withLastVisit, now).resetToken).toBe(true);
+
+    const withNothing = { resetToken: false };
+    expect(grantResetTokenIfEarned(withNothing, now).resetToken).toBe(false);
+  });
+
+  test('secondsUntilTokenReady returns 0 when token held', () => {
+    expect(secondsUntilTokenReady({ resetToken: true })).toBe(0);
+  });
+
+  test('secondsUntilTokenReady returns whole seconds remaining, never negative', () => {
+    const now = Date.now();
+    const timer = {
+      awaySince: now - 2 * 60 * 60 * 1000, // 2h into an 8h threshold
+      tokenThresholdHours: 8,
+      resetToken: false,
+    };
+    const seconds = secondsUntilTokenReady(timer, now);
+    expect(seconds).toBe(6 * 60 * 60);
+    expect(seconds).toBeGreaterThan(0);
+
+    const ready = { awaySince: now - 10 * 60 * 60 * 1000, tokenThresholdHours: 8, resetToken: false };
+    expect(secondsUntilTokenReady(ready, now)).toBe(0);
   });
 });

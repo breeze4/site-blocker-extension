@@ -137,10 +137,13 @@ describe("background service worker session accounting", () => {
       rechargeRate: 30,
       expiredMessageLogged: false,
       isBlocked: false,
+      resetToken: false,
+      tokenThresholdHours: 8,
     });
     expect(finalStorage.domainTimers["www.reddit.com"]).toEqual(
       timerWrite.domainTimers["www.reddit.com"]
     );
+    expect(finalStorage.domainTimers["www.reddit.com"].awaySince).toBeDefined();
   });
 
   test("startup repairs malformed top-level time tracking storage", async () => {

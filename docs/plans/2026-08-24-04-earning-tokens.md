@@ -43,28 +43,28 @@ AFK
 
 ## Acceptance criteria
 
-- [ ] `normalizeTokenThresholdHours` returns 8 for missing, zero, negative,
+- [x] `normalizeTokenThresholdHours` returns 8 for missing, zero, negative,
       non-finite, and non-numeric input, and returns 4, 8, 12, and 24 unchanged.
-- [ ] `grantResetTokenIfEarned` grants at exactly the threshold, does not grant one
+- [x] `grantResetTokenIfEarned` grants at exactly the threshold, does not grant one
       millisecond before it, and does not grant twice — a second call on a record
       that already holds a token returns it unchanged.
-- [ ] A unit test asserts a grant happens when `timeLeft` equals `originalTime`,
+- [x] A unit test asserts a grant happens when `timeLeft` equals `originalTime`,
       proving a full budget does not block a grant.
-- [ ] A unit test asserts a backwards clock jump never grants a token.
-- [ ] Unit tests assert the forgiving reads: `resetToken` absent reads false,
+- [x] A unit test asserts a backwards clock jump never grants a token.
+- [x] Unit tests assert the forgiving reads: `resetToken` absent reads false,
       `tokenThresholdHours` absent reads 8, and `awaySince` absent falls back to
       `lastVisitTimestamp` and then to the injected current time.
-- [ ] `secondsUntilTokenReady` returns 0 when a token is held, and otherwise
+- [x] `secondsUntilTokenReady` returns 0 when a token is held, and otherwise
       returns the whole seconds remaining in the threshold, never negative.
-- [ ] A background integration test asserts the countdown refreshes `awaySince`
+- [x] A background integration test asserts the countdown refreshes `awaySince`
       for the active domain on every tick, so an active domain never accrues
       toward a token.
-- [ ] A background integration test asserts a visit at partway through the
+- [x] A background integration test asserts a visit at partway through the
       threshold restarts the clock, and that the same visit leaves an
       already-held token in place.
-- [ ] The seeded default domains carry `resetToken: false`, `tokenThresholdHours: 8`,
+- [x] The seeded default domains carry `resetToken: false`, `tokenThresholdHours: 8`,
       and an `awaySince` timestamp.
-- [ ] `pnpm test` passes and `pnpm lint` reports no new errors.
+- [x] `pnpm test` passes and `pnpm lint` reports no new errors.
 
 ## Owns
 
@@ -112,20 +112,20 @@ AFK
 
 ## Tasks
 
-- [ ] Add `normalizeTokenThresholdHours` with the four-value ladder and the
+- [x] Add `normalizeTokenThresholdHours` with the four-value ladder and the
       default of 8.
-- [ ] Add `grantResetTokenIfEarned`, granting only when no token is held and the
+- [x] Add `grantResetTokenIfEarned`, granting only when no token is held and the
       elapsed absence reaches the threshold.
-- [ ] Add `secondsUntilTokenReady` for the Options column that a later plan adds.
-- [ ] Export all three helpers three ways.
-- [ ] Call the grant helper for every away domain inside
+- [x] Add `secondsUntilTokenReady` for the Options column that a later plan adds.
+- [x] Export all three helpers three ways.
+- [x] Call the grant helper for every away domain inside
       `applyRechargeToAllTimers`, after crediting recharge and before updating the
       blocked state.
-- [ ] Refresh `awaySince` for the active domain in the countdown tick.
-- [ ] Extend the seeded defaults with the three new fields.
-- [ ] Write the unit and integration coverage listed in the acceptance criteria.
-- [ ] Update `docs/SPEC.md` and the storage bullets in `AGENTS.md`.
-- [ ] Run `pnpm test`, `pnpm lint`, and `pnpm format`.
+- [x] Refresh `awaySince` for the active domain in the countdown tick.
+- [x] Extend the seeded defaults with the three new fields.
+- [x] Write the unit and integration coverage listed in the acceptance criteria.
+- [x] Update `docs/SPEC.md` and the storage bullets in `AGENTS.md`.
+- [x] Run `pnpm test`, `pnpm lint`, and `pnpm format`.
 
 ## Implementation notes
 

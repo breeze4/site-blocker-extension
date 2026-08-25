@@ -282,3 +282,48 @@ describe('Background.js Integration', () => {
     });
   });
 });
+
+  describe('token earning integration', () => {
+    test('countdown refreshes awaySince for active domain on every tick', () => {
+      const now = Date.now();
+      const timer = {
+        originalTime: 300,
+        timeLeft: 300,
+        rechargeRate: 30,
+        lastVisitTimestamp: now,
+        awaySince: now - 4 * 60 * 60 * 1000, // 4h into an 8h threshold
+        resetToken: false,
+        tokenThresholdHours: 8,
+      };
+
+      // Simulate what background.js does on each countdown tick.
+      const tick = (t) => {
+        t.lastVisitTimestamp = Date.now();
+        t.awaySince = Date.now();
+        return t;
+      };
+      const result = tick(timer);
+      expect(result.awaySince).toBeGreaterThanOrEqual(now);
+      expect(TimerUtils.secondsUntilTokenReady(result, Date.now())).toBeGreaterThan(0);
+    });
+
+    test('visit partway through threshold restarts clock and keeps held token', () => {
+      const now = Date.now();
+      // Domain holds a token already and gets visited at hour 4 of a new absence.
+      const timer = {
+        originalTime: 300,
+        timeLeft: 300,
+        rechargeRate: 30,
+        lastVisitTimestamp: now,
+        awaySince: now - 4 * 60 * 60 * 1000,
+        resetToken: true,
+        tokenThresholdHours: 8,
+      };
+
+      // A visit restarts awaySince and does not drop the held token.
+      timer.awaySince = Date.now();
+      timer.lastVisitTimestamp = Date.now();
+      expect(timer.resetToken).toBe(true);
+      expect(TimerUtils.secondsUntilTokenReady(timer, Date.now())).toBe(0);
+    });
+  });

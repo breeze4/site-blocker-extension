@@ -12,6 +12,9 @@ const defaultDomainTimers = {
     lastVisitTimestamp: Date.now(),
     expiredMessageLogged: false,
     isBlocked: false,
+    resetToken: false,
+    tokenThresholdHours: 8,
+    awaySince: Date.now(),
   },
   "old.reddit.com": {
     originalTime: 60,
@@ -20,6 +23,9 @@ const defaultDomainTimers = {
     lastVisitTimestamp: Date.now(),
     expiredMessageLogged: false,
     isBlocked: false,
+    resetToken: false,
+    tokenThresholdHours: 8,
+    awaySince: Date.now(),
   },
   "twitter.com": {
     originalTime: 60,
@@ -28,6 +34,9 @@ const defaultDomainTimers = {
     lastVisitTimestamp: Date.now(),
     expiredMessageLogged: false,
     isBlocked: false,
+    resetToken: false,
+    tokenThresholdHours: 8,
+    awaySince: Date.now(),
   },
   "x.com": {
     originalTime: 60,
@@ -36,6 +45,9 @@ const defaultDomainTimers = {
     lastVisitTimestamp: Date.now(),
     expiredMessageLogged: false,
     isBlocked: false,
+    resetToken: false,
+    tokenThresholdHours: 8,
+    awaySince: Date.now(),
   },
   "instagram.com": {
     originalTime: 60,
@@ -44,6 +56,9 @@ const defaultDomainTimers = {
     lastVisitTimestamp: Date.now(),
     expiredMessageLogged: false,
     isBlocked: false,
+    resetToken: false,
+    tokenThresholdHours: 8,
+    awaySince: Date.now(),
   },
   "www.instagram.com": {
     originalTime: 60,
@@ -52,6 +67,9 @@ const defaultDomainTimers = {
     lastVisitTimestamp: Date.now(),
     expiredMessageLogged: false,
     isBlocked: false,
+    resetToken: false,
+    tokenThresholdHours: 8,
+    awaySince: Date.now(),
   },
 };
 
@@ -153,6 +171,14 @@ async function applyRechargeToAllTimers(domainTimers) {
     // Use TimerUtils function if available (should be available after importScripts)
     if (typeof TimerUtils !== "undefined" && TimerUtils.applyRecharge) {
       domainTimers[domain] = TimerUtils.applyRecharge(timerData, currentTime);
+      // Grant a reset token if the domain has been away long enough, before
+      // updating the blocked-state flag.
+      if (TimerUtils.grantResetTokenIfEarned) {
+        domainTimers[domain] = TimerUtils.grantResetTokenIfEarned(
+          domainTimers[domain],
+          currentTime
+        );
+      }
       // Update the blocked-state flag after crediting recharge.
       if (TimerUtils.updateBlockedState) {
         domainTimers[domain] = TimerUtils.updateBlockedState(domainTimers[domain]);
@@ -188,9 +214,12 @@ async function applyRechargeToAllTimers(domainTimers) {
         }
       }
       domainTimers[domain] = timerData;
-      // Update the blocked-state flag after crediting recharge.
+      // Grant a reset token and update blocked state after crediting recharge.
+      if (typeof TimerUtils !== "undefined" && TimerUtils.grantResetTokenIfEarned) {
+        domainTimers[domain] = TimerUtils.grantResetTokenIfEarned(timerData, currentTime);
+      }
       if (typeof TimerUtils !== "undefined" && TimerUtils.updateBlockedState) {
-        domainTimers[domain] = TimerUtils.updateBlockedState(timerData);
+        domainTimers[domain] = TimerUtils.updateBlockedState(domainTimers[domain]);
       }
     }
   }
@@ -576,8 +605,10 @@ async function handleTimerForTab(tab) {
         }
 
         // The active tab is being visited, not recharging: keep its recharge
-        // clock current so no away-time accrues while it ticks down.
+        // clock current so no away-time accrues while it ticks down, and
+        // refresh the away clock so any visit restarts the token threshold.
         currentTimers[domain].lastVisitTimestamp = Date.now();
+        currentTimers[domain].awaySince = Date.now();
 
         await saveDomainTimers(currentTimers);
 

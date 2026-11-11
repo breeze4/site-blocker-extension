@@ -400,6 +400,121 @@ function formatTimeTracking(totalSeconds) {
   }
 }
 
+// Status line under a domain's blocking-hours controls.
+function scheduleStatusText(timerEntry) {
+  if (!TimerUtils || !TimerUtils.normalizeSchedule) {
+    return "";
+  }
+  if (!TimerUtils.normalizeSchedule(timerEntry).enabled) {
+    return "Off: blocks at all hours.";
+  }
+  return TimerUtils.describeSchedule(timerEntry, new Date());
+}
+
+// Build the "Blocking hours" cell: a toggle and a start and end time. Each
+// change saves at once.
+function buildScheduleCell(domain, timerEntry) {
+  const schedule =
+    TimerUtils && TimerUtils.normalizeSchedule
+      ? TimerUtils.normalizeSchedule(timerEntry)
+      : { enabled: false, start: "09:00", end: "17:00" };
+
+  const cell = document.createElement("td");
+  cell.className = "schedule-cell";
+  cell.setAttribute("data-field", "schedule");
+
+  const controls = document.createElement("div");
+  controls.className = "schedule-controls";
+
+  const toggleLabel = document.createElement("label");
+  toggleLabel.className = "schedule-toggle";
+  const toggle = document.createElement("input");
+  toggle.type = "checkbox";
+  toggle.className = "schedule-enabled";
+  toggle.checked = schedule.enabled;
+  toggle.setAttribute("aria-label", `Block ${domain} only during these hours`);
+  toggleLabel.appendChild(toggle);
+  toggleLabel.appendChild(document.createTextNode(" Only these hours"));
+
+  const startInput = document.createElement("input");
+  startInput.type = "time";
+  startInput.className = "schedule-start";
+  startInput.value = schedule.start;
+  startInput.setAttribute("aria-label", `Blocking start time for ${domain}`);
+
+  const fromText = document.createElement("span");
+  fromText.textContent = "From";
+
+  const toText = document.createElement("span");
+  toText.textContent = "To";
+
+  const endInput = document.createElement("input");
+  endInput.type = "time";
+  endInput.className = "schedule-end";
+  endInput.value = schedule.end;
+  endInput.setAttribute("aria-label", `Blocking end time for ${domain}`);
+
+  // Grid layout: the toggle spans both columns, then "From [start]" and
+  // "To [end]" each take one row.
+  controls.appendChild(toggleLabel);
+  controls.appendChild(fromText);
+  controls.appendChild(startInput);
+  controls.appendChild(toText);
+  controls.appendChild(endInput);
+
+  const status = document.createElement("div");
+  status.className = "schedule-status";
+  status.textContent = scheduleStatusText(timerEntry);
+
+  cell.appendChild(controls);
+  cell.appendChild(status);
+
+  const onChange = () => saveSchedule(domain, cell);
+  toggle.addEventListener("change", onChange);
+  startInput.addEventListener("change", onChange);
+  endInput.addEventListener("change", onChange);
+
+  return cell;
+}
+
+// Save a domain's blocking hours from its row controls, then tell the worker so
+// it re-checks the active tab and moves its boundary alarm.
+async function saveSchedule(domain, cell) {
+  const enabled = cell.querySelector(".schedule-enabled").checked;
+  const start = cell.querySelector(".schedule-start").value;
+  const end = cell.querySelector(".schedule-end").value;
+  const status = cell.querySelector(".schedule-status");
+
+  if (TimerUtils.parseTimeOfDay(start) === null || TimerUtils.parseTimeOfDay(end) === null) {
+    status.dataset.error = "true";
+    status.textContent = "Enter a start and an end time.";
+    return;
+  }
+  if (enabled && start === end) {
+    status.dataset.error = "true";
+    status.textContent = "Start and end must differ.";
+    return;
+  }
+  delete status.dataset.error;
+
+  try {
+    const storedDomainTimers = await StorageUtils.getFromStorage("domainTimers");
+    const domainTimers = isPlainRecord(storedDomainTimers) ? storedDomainTimers : {};
+    if (!isPlainRecord(domainTimers[domain])) {
+      return;
+    }
+    domainTimers[domain].schedule = { enabled, start, end };
+    await StorageUtils.setToStorage({ domainTimers });
+    status.textContent = scheduleStatusText(domainTimers[domain]);
+
+    try {
+      await chrome.runtime.sendMessage({ action: "timerSettingsChanged" });
+    } catch (error) {}
+  } catch (error) {
+    console.error("Error saving blocking hours:", error);
+  }
+}
+
 // This function renders the list of configured domains and their timers into the table.
 async function renderDomainList() {
   // Helper function to convert seconds to a "X min Y sec" format.
@@ -591,30 +706,8 @@ async function renderDomainList() {
             : formatTimeTracking(secondsUntilFull)
           : "Full";
 
-      // Reset token cell — shows token state and 30d spend count.
-      const tokenCell = document.createElement("td");
-      tokenCell.style.textAlign = "center";
-      {
-        const timerEntry = domainTimers[domain];
-        if (timerEntry && timerEntry.resetToken === true) {
-          tokenCell.textContent = "Ready";
-          tokenCell.style.color = "#2e7d32";
-          tokenCell.style.fontWeight = "600";
-        } else {
-          const secsUntil =
-            TimerUtils && TimerUtils.secondsUntilTokenReady
-              ? TimerUtils.secondsUntilTokenReady(timerEntry || {}, Date.now())
-              : 0;
-          if (secsUntil > 0) {
-            tokenCell.textContent =
-              TimerUtils && TimerUtils.formatCountdown
-                ? TimerUtils.formatCountdown(secsUntil)
-                : secsUntil;
-          } else {
-            tokenCell.textContent = "—";
-          }
-        }
-      }
+      // Blocking hours cell: on/off toggle and one daily window.
+      const scheduleCell = buildScheduleCell(domain, domainTimers[domain]);
 
       // Actions cell (delete and reset tracking buttons)
       const actionsCell = document.createElement("td");
@@ -646,7 +739,7 @@ async function renderDomainList() {
       row.appendChild(last30dCell);
       row.appendChild(allTimeCell);
       row.appendChild(fullInCell);
-      row.appendChild(tokenCell);
+      row.appendChild(scheduleCell);
       row.appendChild(actionsCell);
 
       // Restore save button state if it was previously enabled
@@ -1054,27 +1147,13 @@ async function updateTimeDisplays() {
               : "Full";
         }
 
-        // Update Reset token (8th column / now 9th)
-        const tokenCell = row.cells[8];
-        if (tokenCell) {
-          const timerEntry = domainTimers[domain];
-          if (timerEntry && timerEntry.resetToken === true) {
-            tokenCell.textContent = "Ready";
-            tokenCell.style.color = "#2e7d32";
-            tokenCell.style.fontWeight = "600";
-          } else {
-            const secsUntil =
-              TimerUtils && TimerUtils.secondsUntilTokenReady
-                ? TimerUtils.secondsUntilTokenReady(timerEntry || {}, Date.now())
-                : 0;
-            if (secsUntil > 0) {
-              tokenCell.textContent =
-                TimerUtils && TimerUtils.formatCountdown
-                  ? TimerUtils.formatCountdown(secsUntil)
-                  : secsUntil;
-            } else {
-              tokenCell.textContent = "—";
-            }
+        // Update the blocking-hours status line (9th column) so "starts at" and
+        // "ends at" stay current. The controls are left alone.
+        const scheduleStatus = row.cells[8]?.querySelector(".schedule-status");
+        if (scheduleStatus) {
+          // Keep a validation message on screen until the next valid save.
+          if (scheduleStatus.dataset.error !== "true") {
+            scheduleStatus.textContent = scheduleStatusText(domainTimers[domain]);
           }
         }
 

@@ -13,7 +13,8 @@
 
     body {
       font-family: Arial, sans-serif;
-      width: 80%;
+      /* 95%: the tracked-sites table has 11 columns. */
+      width: 95%;
       margin: 20px auto;
     }
 
@@ -33,33 +34,33 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    /* Column widths add up to exactly 100% so no column is clipped. */
     th:nth-child(1), td:nth-child(1) { /* Domain */
       width: 15%;
     }
     th:nth-child(2), td:nth-child(2) { /* Time Allowed */
-      width: 25%;
+      width: 23%;
     }
     th:nth-child(3), td:nth-child(3) { /* Time Left */
-      width: 10%;
+      width: 8%;
     }
     th:nth-child(4), td:nth-child(4) { /* Last 24h */
-      width: 10%;
+      width: 6%;
     }
     th:nth-child(5), td:nth-child(5) { /* Last 7d */
-      width: 10%;
+      width: 6%;
     }
     th:nth-child(6), td:nth-child(6) { /* Last 30d */
-      width: 10%;
+      width: 6%;
     }
     th:nth-child(7), td:nth-child(7) { /* All Time */
-      width: 10%;
+      width: 6%;
     }
-    th:nth-child(8), td:nth-child(8) { /* Full In */
-      width: 10%;
+    th:nth-child(8), td:nth-child(8) { /* Full in */
+      width: 6%;
     }
-    th:nth-child(9), td:nth-child(9) { /* Reset token */
-      width: 130px;
-      text-align: center;
+    th:nth-child(9), td:nth-child(9) { /* Blocking hours */
+      width: 14%;
     }
     th:nth-child(10), td:nth-child(10) { /* Actions */
       width: 10%;
@@ -253,6 +254,35 @@
       background-color: #cccccc;
       color: #666666;
       cursor: not-allowed;
+    }
+    .schedule-cell {
+      vertical-align: top;
+    }
+    /* Toggle, From, and To each get their own line so the cell stays narrow. */
+    .schedule-controls {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: center;
+      gap: 4px 4px;
+      font-size: 11px;
+    }
+    .schedule-controls .schedule-toggle {
+      grid-column: 1 / -1;
+      white-space: nowrap;
+    }
+    .schedule-controls input {
+      margin: 0;
+    }
+    .schedule-controls input[type="time"] {
+      font-size: 11px;
+      padding: 1px 2px;
+      width: 100%;
+      min-width: 0;
+    }
+    .schedule-status {
+      margin-top: 4px;
+      font-size: 11px;
+      color: #777;
     }
     .url-input-section {
       margin-bottom: 20px;
@@ -630,8 +660,8 @@
           <th role="columnheader" scope="col">Last 7d</th>
           <th role="columnheader" scope="col">Last 30d</th>
           <th role="columnheader" scope="col">All Time</th>
-          <th role="columnheader" scope="col">Recharges in</th>
-          <th role="columnheader" scope="col">Earns reset token in</th>
+          <th role="columnheader" scope="col" title="Time until the budget recharges to its cap">Full in</th>
+          <th role="columnheader" scope="col">Blocking hours</th>
           <th role="columnheader" scope="col">Actions</th>
         </tr>
       </thead>

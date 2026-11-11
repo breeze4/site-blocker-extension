@@ -483,9 +483,203 @@ function shouldOfferOverlayReset(timerData) {
   return timeLeft <= bound;
 }
 
+// ---------------------------------------------------------------------------
+// Blocking hours: one optional daily time window per domain, stored as
+// `schedule: { enabled, start: "HH:MM", end: "HH:MM" }` in browser local time.
+// This file holds only function declarations so it can load more than once in
+// one script context.
+// ---------------------------------------------------------------------------
+
+/**
+ * The window a domain gets before the user sets one.
+ * @returns {{ enabled: boolean, start: string, end: string }}
+ */
+function defaultSchedule() {
+  return { enabled: false, start: "09:00", end: "17:00" };
+}
+
+/**
+ * Parse an "HH:MM" 24-hour string into minutes after midnight.
+ * @param {string} value
+ * @returns {number|null} 0..1439, or null for invalid input
+ */
+function parseTimeOfDay(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
+  if (!match) {
+    return null;
+  }
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) {
+    return null;
+  }
+  return hours * 60 + minutes;
+}
+
+/**
+ * Format minutes after midnight as a 12-hour clock string, such as "9:00 AM".
+ * @param {number} minutes
+ * @returns {string}
+ */
+function formatTimeOfDay(minutes) {
+  const minutesPerDay = 24 * 60;
+  const safe = ((Math.floor(minutes) % minutesPerDay) + minutesPerDay) % minutesPerDay;
+  const hours24 = Math.floor(safe / 60);
+  const mins = safe % 60;
+  const suffix = hours24 < 12 ? "AM" : "PM";
+  const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
+  return `${hours12}:${String(mins).padStart(2, "0")} ${suffix}`;
+}
+
+/**
+ * Read a timer's blocking-hours window forgivingly. A missing or malformed
+ * schedule is off, with the 09:00-17:00 default window.
+ * @param {Object} timerData
+ * @returns {{ enabled: boolean, start: string, end: string }}
+ */
+function normalizeSchedule(timerData) {
+  const fallback = defaultSchedule();
+  const schedule =
+    timerData && timerData.schedule && typeof timerData.schedule === "object"
+      ? timerData.schedule
+      : {};
+  const start = parseTimeOfDay(schedule.start) !== null ? schedule.start.trim() : fallback.start;
+  const end = parseTimeOfDay(schedule.end) !== null ? schedule.end.trim() : fallback.end;
+  return { enabled: schedule.enabled === true, start, end };
+}
+
+/**
+ * Decide whether a minute of the day falls inside a window. The start is
+ * inclusive and the end is exclusive. A start later than the end crosses
+ * midnight. A start equal to the end covers the whole day.
+ * @param {number} startMinutes
+ * @param {number} endMinutes
+ * @param {number} nowMinutes
+ * @returns {boolean}
+ */
+function isWithinWindow(startMinutes, endMinutes, nowMinutes) {
+  if (startMinutes === endMinutes) {
+    return true;
+  }
+  if (startMinutes < endMinutes) {
+    return nowMinutes >= startMinutes && nowMinutes < endMinutes;
+  }
+  return nowMinutes >= startMinutes || nowMinutes < endMinutes;
+}
+
+/**
+ * Decide whether blocking applies to a domain at a given moment. With the
+ * schedule off, blocking applies at all hours. With it on, blocking applies
+ * only inside the window, in the browser's local time.
+ * @param {Object} timerData
+ * @param {Date|number} now - Date or ms timestamp (for testing)
+ * @returns {boolean}
+ */
+function isBlockingActive(timerData, now = new Date()) {
+  const schedule = normalizeSchedule(timerData);
+  if (!schedule.enabled) {
+    return true;
+  }
+  const date = now instanceof Date ? now : new Date(now);
+  const nowMinutes = date.getHours() * 60 + date.getMinutes();
+  return isWithinWindow(parseTimeOfDay(schedule.start), parseTimeOfDay(schedule.end), nowMinutes);
+}
+
+/**
+ * Describe a domain's blocking-hours state for display and for scheduling the
+ * next re-check. `nextChange` is when blocking next starts (when inactive) or
+ * ends (when active). It is null when the schedule is off or covers the whole
+ * day.
+ * @param {Object} timerData
+ * @param {Date|number} now
+ * @returns {{ enabled: boolean, active: boolean, start: string, end: string,
+ *   nextChange: Date|null, msUntilChange: number|null }}
+ */
+function getScheduleStatus(timerData, now = new Date()) {
+  const schedule = normalizeSchedule(timerData);
+  const date = now instanceof Date ? now : new Date(now);
+  const active = isBlockingActive(timerData, date);
+  const startMinutes = parseTimeOfDay(schedule.start);
+  const endMinutes = parseTimeOfDay(schedule.end);
+
+  if (!schedule.enabled || startMinutes === endMinutes) {
+    return { ...schedule, active, nextChange: null, msUntilChange: null };
+  }
+
+  const targetMinutes = active ? endMinutes : startMinutes;
+  const next = new Date(date.getTime());
+  next.setHours(Math.floor(targetMinutes / 60), targetMinutes % 60, 0, 0);
+  if (next.getTime() <= date.getTime()) {
+    next.setDate(next.getDate() + 1);
+  }
+  return {
+    ...schedule,
+    active,
+    nextChange: next,
+    msUntilChange: next.getTime() - date.getTime(),
+  };
+}
+
+/**
+ * One-line description of a domain's blocking hours for the popup and block
+ * page, such as "Blocking hours 9:00 AM-5:00 PM. Blocking ends at 5:00 PM."
+ * Empty when the schedule is off.
+ * @param {Object} timerData
+ * @param {Date|number} now
+ * @returns {string}
+ */
+function describeSchedule(timerData, now = new Date()) {
+  const status = getScheduleStatus(timerData, now);
+  if (!status.enabled) {
+    return "";
+  }
+  if (!status.nextChange) {
+    return "Blocking hours cover the whole day.";
+  }
+  const range = `${formatTimeOfDay(parseTimeOfDay(status.start))}-${formatTimeOfDay(
+    parseTimeOfDay(status.end)
+  )}`;
+  const at = formatTimeOfDay(status.nextChange.getHours() * 60 + status.nextChange.getMinutes());
+  return status.active
+    ? `Blocking hours ${range}. Blocking ends at ${at}.`
+    : `Outside blocking hours (${range}). Blocking starts at ${at}.`;
+}
+
+/**
+ * The soonest blocking-hours change across all domains, in ms from now.
+ * @param {Object} domainTimers
+ * @param {Date|number} now
+ * @returns {number|null} null when no domain has a timed window
+ */
+function msUntilNextScheduleChange(domainTimers, now = new Date()) {
+  let soonest = null;
+  for (const timerData of Object.values(domainTimers || {})) {
+    if (!timerData || typeof timerData !== "object") {
+      continue;
+    }
+    const { msUntilChange } = getScheduleStatus(timerData, now);
+    if (msUntilChange !== null && (soonest === null || msUntilChange < soonest)) {
+      soonest = msUntilChange;
+    }
+  }
+  return soonest;
+}
+
 // Export for Node.js (testing) environment
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
+    defaultSchedule,
+    parseTimeOfDay,
+    formatTimeOfDay,
+    normalizeSchedule,
+    isWithinWindow,
+    isBlockingActive,
+    getScheduleStatus,
+    describeSchedule,
+    msUntilNextScheduleChange,
     shouldResetTimer,
     applyTimerSettingsChange,
     normalizeRechargeRate,
@@ -509,6 +703,15 @@ if (typeof module !== "undefined" && module.exports) {
 } else if (typeof window !== "undefined") {
   // Browser environment - make functions globally available
   window.TimerUtils = {
+    defaultSchedule,
+    parseTimeOfDay,
+    formatTimeOfDay,
+    normalizeSchedule,
+    isWithinWindow,
+    isBlockingActive,
+    getScheduleStatus,
+    describeSchedule,
+    msUntilNextScheduleChange,
     shouldResetTimer,
     applyTimerSettingsChange,
     normalizeRechargeRate,
@@ -532,6 +735,15 @@ if (typeof module !== "undefined" && module.exports) {
 } else {
   // Service worker environment - make functions globally available
   globalThis.TimerUtils = {
+    defaultSchedule,
+    parseTimeOfDay,
+    formatTimeOfDay,
+    normalizeSchedule,
+    isWithinWindow,
+    isBlockingActive,
+    getScheduleStatus,
+    describeSchedule,
+    msUntilNextScheduleChange,
     shouldResetTimer,
     applyTimerSettingsChange,
     normalizeRechargeRate,

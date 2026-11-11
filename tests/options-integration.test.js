@@ -1202,7 +1202,7 @@ describe('Options.js Integration', () => {
       jest.resetModules();
     });
 
-    test('rendered row has 10 cells with Actions last', async () => {
+    test('rendered row has 10 cells with Blocking hours before Actions', async () => {
       global.StorageUtils.getFromStorage = jest.fn((key) => {
         if (key === 'domainTimers') {
           return Promise.resolve({
@@ -1226,10 +1226,11 @@ describe('Options.js Integration', () => {
       expect(rows.length).toBeGreaterThan(0);
       const row = rows[0];
       expect(row.cells.length).toBe(10);
+      expect(row.cells[8].querySelector('.schedule-enabled')).not.toBeNull();
       expect(row.cells[9].textContent).toContain('Delete');
     });
 
-    test('token cell reads "Ready" when token held', async () => {
+    test('the table has no reset-token column, even when a token is held', async () => {
       global.StorageUtils.getFromStorage = jest.fn((key) => {
         if (key === 'domainTimers') {
           return Promise.resolve({
@@ -1247,27 +1248,7 @@ describe('Options.js Integration', () => {
       for (let i = 0; i < 10; i++) { await Promise.resolve(); }
       const rows = document.querySelectorAll('#domainListBody tr');
       expect(rows.length).toBeGreaterThan(0);
-      expect(rows[0].cells[8].textContent).toBe('Ready');
-    });
-
-    test('token cell shows — when no token', async () => {
-      global.StorageUtils.getFromStorage = jest.fn((key) => {
-        if (key === 'domainTimers') {
-          return Promise.resolve({
-            'example.com': {
-              originalTime: 300, timeLeft: 150, rechargeRate: 30,
-              lastVisitTimestamp: Date.now(), expiredMessageLogged: false,
-              isBlocked: false, resetToken: false, tokenThresholdHours: 8,
-              awaySince: Date.now() - 9 * 60 * 60 * 1000,
-            },
-          });
-        }
-        return Promise.resolve(null);
-      });
-      require('../src/options.js');
-      for (let i = 0; i < 10; i++) { await Promise.resolve(); }
-      const rows = document.querySelectorAll('#domainListBody tr');
-      expect(rows.length).toBeGreaterThan(0);
-      expect(rows[0].cells[8].textContent).toBe('\u2014');
+      const cellTexts = Array.from(rows[0].cells).map((cell) => cell.textContent);
+      expect(cellTexts).not.toContain('Ready');
     });
   });

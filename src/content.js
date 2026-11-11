@@ -178,10 +178,12 @@ function removeOverlay() {
 // Decide overlay visibility from current state. Shown only for a tracked domain
 // with positive finite time left. The reset button appears only when a token is
 // held and time is nearly gone.
+// Outside the domain's blocking hours the overlay is hidden.
 function syncOverlay(domainTimers) {
   const domain = getCurrentDomain();
   const timer = domain && domainTimers ? domainTimers[domain] : null;
-  const active = timer && Number.isFinite(timer.timeLeft) && timer.timeLeft > 0;
+  const active =
+    timer && isBlockingActiveNow(timer) && Number.isFinite(timer.timeLeft) && timer.timeLeft > 0;
 
   if (!active) {
     removeOverlay();
@@ -194,17 +196,55 @@ function syncOverlay(domainTimers) {
   renderOverlay(timer.timeLeft, timer.originalTime, showReset);
 }
 
-// On load: block an already-expired page, otherwise show the live overlay.
+// Whether blocking applies to this timer now. Without TimerUtils, fall back to
+// blocking at all hours (the behavior before blocking hours existed).
+function isBlockingActiveNow(timer) {
+  if (typeof TimerUtils !== "undefined" && TimerUtils.isBlockingActive) {
+    return TimerUtils.isBlockingActive(timer, new Date());
+  }
+  return true;
+}
+
+// Re-check this page when the domain's blocking hours next start or end, so an
+// open tab is blocked or shows the overlay at once, without a reload.
+let boundaryTimeoutId = null;
+function armBoundaryTimer(timer) {
+  if (boundaryTimeoutId !== null) {
+    clearTimeout(boundaryTimeoutId);
+    boundaryTimeoutId = null;
+  }
+  if (!timer || typeof TimerUtils === "undefined" || !TimerUtils.getScheduleStatus) {
+    return;
+  }
+  const { msUntilChange } = TimerUtils.getScheduleStatus(timer, new Date());
+  if (msUntilChange === null) {
+    return;
+  }
+  // A one-second margin puts the re-check inside the new minute.
+  boundaryTimeoutId = setTimeout(() => {
+    boundaryTimeoutId = null;
+    init();
+  }, msUntilChange + 1000);
+}
+
+// On load and at each blocking-hours boundary: block an already-expired page
+// inside its blocking hours, otherwise show or hide the live overlay.
 async function init() {
   try {
     const domainTimers = (await StorageUtils.getFromStorage("domainTimers")) || {};
     const domain = getCurrentDomain();
     const timer = domain ? domainTimers[domain] : null;
+    armBoundaryTimer(timer);
 
-    // If this domain has a timer and it's already exhausted, ask the worker to
-    // navigate to the block page. Fall back to the inline body swap when the
-    // message fails (worker not ready, disconnected, etc.).
-    if (timer && !(Number.isFinite(timer.timeLeft) && timer.timeLeft > 0)) {
+    // If this domain has a timer, is inside its blocking hours, and is already
+    // exhausted, ask the worker to navigate to the block page. Fall back to the
+    // inline body swap when the message fails (worker not ready, disconnected,
+    // etc.).
+    if (
+      timer &&
+      isBlockingActiveNow(timer) &&
+      !(Number.isFinite(timer.timeLeft) && timer.timeLeft > 0)
+    ) {
       try {
         await chrome.runtime.sendMessage({
           action: "blockTab",
@@ -235,6 +275,9 @@ if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.onChanged)
     try {
       const domainTimers = (await StorageUtils.getFromStorage("domainTimers")) || {};
       syncOverlay(domainTimers);
+      // The Options page can change the blocking hours; move the re-check.
+      const domain = getCurrentDomain();
+      armBoundaryTimer(domain ? domainTimers[domain] : null);
     } catch (error) {}
   });
 }

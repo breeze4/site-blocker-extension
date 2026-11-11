@@ -111,8 +111,24 @@ async function renderSiteStatus() {
   const timeLeft = Number.isFinite(timer.timeLeft) ? timer.timeLeft : 0;
   const originalTime = Number.isFinite(timer.originalTime) ? timer.originalTime : 0;
 
+  // Blocking hours: outside the window the site is open, so say that instead
+  // of the countdown, and say when blocking next starts or ends.
+  const blockingActive = TimerUtils.isBlockingActive
+    ? TimerUtils.isBlockingActive(timer, new Date())
+    : true;
+  const scheduleText = TimerUtils.describeSchedule
+    ? TimerUtils.describeSchedule(timer, new Date())
+    : "";
+  const scheduleEl = $("scheduleStatus");
+  if (scheduleEl) {
+    scheduleEl.textContent = scheduleText;
+    scheduleEl.classList.toggle("hidden", !scheduleText);
+  }
+
   const timeLeftEl = $("timeLeft");
-  if (timeLeft > 0) {
+  if (!blockingActive) {
+    timeLeftEl.textContent = "Not blocked now.";
+  } else if (timeLeft > 0) {
     timeLeftEl.textContent = `${TimerUtils.formatTime(timeLeft)} left`;
   } else {
     timeLeftEl.textContent = "Time's up for this site.";

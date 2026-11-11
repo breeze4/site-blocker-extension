@@ -24,6 +24,12 @@
 - Redirect to new tab when site time limit is reached
 - Track which tabs are active for time measurement
 
+### `alarms`
+**Purpose**: Start or stop blocking at a domain's chosen hours
+**Usage**:
+- Wake the background service worker when a domain's blocking hours start or end
+- Re-check the active tab at that moment so blocking starts or stops without a reload
+
 ## Host Permissions
 
 ### `<all_urls>`

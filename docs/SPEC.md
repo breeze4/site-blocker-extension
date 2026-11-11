@@ -20,7 +20,7 @@ Single-writer principle: only the background service worker writes `timeLeft`. E
 ## Manifest (`manifest.json`)
 
 - Manifest version 3.
-- Permissions: `storage` (timers, tracking, settings), `activeTab` and `tabs` (read the active tab's URL, redirect on expiry).
+- Permissions: `storage` (timers, tracking, settings), `activeTab` and `tabs` (read the active tab's URL, redirect on expiry), and `alarms` (re-check the active tab when a domain's blocking hours start or end).
 - Host permissions: `<all_urls>` so the content script runs everywhere and the worker can read tab URLs.
 - Background: `background.js` as a service worker.
 - Content scripts: `storage-utils.js` then `content.js`, matched on `<all_urls>`, injected at `document_idle`.
@@ -64,6 +64,19 @@ lastVisitTimestamp += credited / ratePerMs      // consume only what was credite
 timeLeft = newTimeLeft
 ```
 
+### Blocking hours
+
+Each tracked domain can limit its blocking to one daily time window, such as 9:00 AM-5:00 PM, with an on/off toggle. The window uses the browser's local time. The domain's `schedule` field stores it (see Storage data models).
+
+- Toggle off, the default: the domain blocks at all hours, as it did before blocking hours existed. A stored timer without a `schedule` field reads as toggle off with the 09:00-17:00 default window, so existing timers load with no data loss.
+- Toggle on, inside the window: the domain behaves as at all hours before. The countdown runs, the budget blocks at zero, and recharge and reset tokens work.
+- Toggle on, outside the window: the site is open. The worker doesn't start a countdown, doesn't block, and doesn't start a time-tracking session. The overlay is hidden. The recharge clock keeps running, so the budget refills during off-hours visits too.
+- The window includes its start minute and excludes its end minute. A start later than the end crosses midnight: 22:00-02:00 covers 22:00 through 01:59. A start equal to the end covers the whole day. The Options page refuses to save an equal start and end with the toggle on.
+- The worker sets one `chrome.alarms` alarm, `blockingHoursBoundary`, for the soonest start or end across all domains, plus one second. When the alarm fires, the worker re-handles the active tab and sets the next alarm. A tab on the domain when the window starts is counted or blocked without a reload. The worker also sets the alarm at startup and after each `timerSettingsChanged` message.
+- Each countdown tick re-checks the window and stops the countdown when the window ends during a visit.
+- The content script sets its own timeout for the domain's next boundary and re-runs its load check then. An exhausted background tab asks to be blocked when the window starts. The worker refuses a `blockTab` request from a domain outside its window.
+- The pure helpers `isWithinWindow`, `isBlockingActive`, `getScheduleStatus`, `describeSchedule`, and `msUntilNextScheduleChange` live in `timer-utils.js`.
+
 ### Time-tracking analytics
 
 Actual time spent per domain is recorded separately from the countdown, under `timeTracking`.
@@ -79,9 +92,10 @@ Actual time spent per domain is recorded separately from the countdown, under `t
 The full-tab configuration and analytics surface.
 
 - Add a domain via a single input that parses full URLs, partial URLs, or bare domains, previews the resulting hostname in real time, validates it (rejects IPs, `localhost`, malformed input), and warns on duplicates. The full hostname is kept, so subdomains are tracked separately.
-- A table lists every tracked domain, sorted by base domain then subdomain, with columns: Domain, Time Allowed (inline time-limit radios + Save), Time Left, Last 24h, Last 7d, Last 30d, All Time, Full In, and Actions (Delete, Reset Tracking).
+- A table lists every tracked domain, sorted by base domain then subdomain, with columns: Domain, Time Allowed (inline time-limit radios + Save), Time Left, Last 24h, Last 7d, Last 30d, All Time, Full in, Blocking hours, and Actions (Delete, Reset Tracking). The table has no reset-token column. The page is 95% of the window width so the 10 columns fit, and the column widths add up to 100%.
 - Time-limit radios offer 1/5/10/30/60 minutes; Save is enabled only when the selection differs from storage, and on save the worker is notified to restart the active timer.
-- The "Full In" column shows the estimated time until `timeLeft` recharges back to `originalTime` at the current rate (or "Full" when already at the cap), so the user can anticipate when access returns.
+- The Blocking hours column, before Actions, holds an **Only these hours** checkbox and **From** and **To** time fields, one per line, per domain (default 09:00-17:00, off). Each change saves at once and sends `timerSettingsChanged` to the worker. A status line under the fields says "Off: blocks at all hours." or when blocking next starts or ends, and refreshes once per second.
+- The "Full in" column shows the estimated time until `timeLeft` recharges back to `originalTime` at the current rate (or "Full" when already at the cap), so the user can anticipate when access returns.
 - Global controls: the recharge-rate radios (30s/1m/2m/5m/10m/15m per hour, apply to all domains), and "Reset All Tracking".
 - The time columns refresh once per second without disturbing in-progress edits. A first-install onboarding banner shows when opened with `?onboarding=true`.
 
@@ -91,6 +105,7 @@ A compact browser-action popup — the lightweight everyday entry point — styl
 
 - Shows the active tab's hostname, its remaining time, and a progress bar of `timeLeft` against `originalTime`, refreshed about once per second while open.
 - Block this site: shown for a trackable, not-yet-tracked page; adds the hostname to `domainTimers` with a default 5-minute limit and the recharge rate inherited from existing domains (falling back to 30s/hr).
+- With blocking hours on, a line under the time left says when blocking next ends (inside the window) or starts (outside it). Outside the window the time-left line reads "Not blocked now."
 - Edge states: a not-tracked-yet message with the Block button for trackable pages; an informational message for non-trackable pages (`chrome://`, `chrome-extension://`, `about:`, blank).
 
 ### Block page (`blocked.html` / `blocked.js`)
@@ -100,13 +115,14 @@ A compact browser-action popup — the lightweight everyday entry point — styl
 - The page reads the query parameters, looks up the domain's timer from storage, and renders the blocked site's name and an estimate of how long until the budget recharges to the 10% re-entry floor (using `reEntryFloor` and the domain's recharge rate).
 - If the domain is already above the floor, the page shows a "site already usable" message instead of a countdown.
 - The block page is not interactive yet; the spend button arrives in a later slice.
+- With blocking hours on, the page says when blocking ends. The page re-renders at the window end. Outside the window it hides the recharge estimate and the reset button and shows "Blocking hours are over." with an **Open the site** link to the origin URL.
 
 ### Time-left overlay (`content.js`)
 
 A passive, on-page indicator so remaining time is visible while browsing without opening the popup.
 
 - A compact pill fixed to the top-right of the viewport, showing the remaining time (`M:SS`, or `Hh MMm` over an hour) and a thin progress bar of `timeLeft / originalTime`. The bar shifts green → amber → red as time depletes.
-- Shown only for a tracked domain with positive finite `timeLeft`. Hidden when the domain is untracked, or time has expired (the block/redirect logic handles that case).
+- Shown only for a tracked domain with positive finite `timeLeft`. Hidden when the domain is untracked, or time has expired (the block/redirect logic handles that case). Also hidden outside the domain's blocking hours.
 - Updated live via `chrome.storage.onChanged` (the worker is the single writer that decrements each second) — no polling.
 - Rendered inside a Shadow DOM host with a maximal z-index and `pointer-events: none`, so page styles can't affect it and it never intercepts clicks.
 
@@ -140,10 +156,17 @@ Per-domain timer configuration and current state.
     "isBlocked": false,            // set true at countdown zero; cleared when recharge reaches 10% of cap
     "resetToken": false,           // held single-token flag; granted after a full absence
     "tokenThresholdHours": 8,      // hours of absence needed to earn a token (4/8/12/24)
-    "awaySince": 1691856000000     // ms — last moment the domain was visited; the token clock
+    "awaySince": 1691856000000,    // ms — last moment the domain was visited; the token clock
+    "schedule": {                  // optional blocking hours; absent means off
+      "enabled": true,             // on: block only inside the window; off: block at all hours
+      "start": "09:00",            // "HH:MM" 24-hour local time, inclusive
+      "end": "17:00"               // "HH:MM" 24-hour local time, exclusive; earlier than start crosses midnight
+    }
   }
 }
 ```
+
+Blocking hours migration: the Options page writes `schedule` the first time you change a domain's blocking hours. A missing or malformed `schedule` reads as off with the 09:00-17:00 default window.
 
 Defaults seeded on first install (all `originalTime`/`timeLeft` 60s, `rechargeRate` 30s/hr): `www.reddit.com`, `old.reddit.com`, `twitter.com`, `x.com`, `instagram.com`, `www.instagram.com`.
 

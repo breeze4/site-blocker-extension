@@ -128,6 +128,32 @@ async function handleReset() {
   }
 }
 
+let boundaryRenderId = null;
+
+/**
+ * Re-render the page when the domain's blocking hours next start or end.
+ * @param {Object} timer
+ * @param {Date} now
+ */
+function armBoundaryRender(timer, now) {
+  if (boundaryRenderId !== null) {
+    clearTimeout(boundaryRenderId);
+    boundaryRenderId = null;
+  }
+  if (typeof TimerUtils === "undefined" || !TimerUtils.getScheduleStatus) {
+    return;
+  }
+  const { msUntilChange } = TimerUtils.getScheduleStatus(timer, now);
+  if (msUntilChange === null) {
+    return;
+  }
+  // A one-second margin puts the re-render inside the new minute.
+  boundaryRenderId = setTimeout(() => {
+    boundaryRenderId = null;
+    render();
+  }, msUntilChange + 1000);
+}
+
 /**
  * Render the block page. Shows domain name and estimates time until the site is
  * usable again, or shows "already ready" if the floor has been reached.
@@ -153,6 +179,33 @@ async function render() {
       return;
     }
 
+    // Blocking hours: say when blocking next starts or ends, and re-render at
+    // that moment so the page reflects the change without a reload.
+    const now = new Date();
+    const utils = typeof TimerUtils !== "undefined" ? TimerUtils : {};
+    const scheduleEl = document.getElementById("scheduleStatus");
+    if (scheduleEl && utils.describeSchedule) {
+      const scheduleText = utils.describeSchedule(timer, now);
+      scheduleEl.textContent = scheduleText;
+      scheduleEl.classList.toggle("hidden", !scheduleText);
+    }
+    armBoundaryRender(timer, now);
+
+    // Outside the blocking hours the site is open: offer a way back to it.
+    if (utils.isBlockingActive && !utils.isBlockingActive(timer, now)) {
+      document.getElementById("reentryEstimate").classList.add("hidden");
+      document.getElementById("alreadyReady").classList.add("hidden");
+      document.getElementById("resetButton").classList.add("hidden");
+      const link = document.getElementById("openSiteLink");
+      if (link) {
+        link.href = originUrl || `https://${domain}/`;
+      }
+      document.getElementById("hoursOver").classList.remove("hidden");
+      return;
+    }
+    document.getElementById("hoursOver")?.classList.add("hidden");
+    document.getElementById("reentryEstimate").classList.remove("hidden");
+
     const timeLeft = Number.isFinite(timer.timeLeft) ? timer.timeLeft : 0;
     const rate =
       Number.isFinite(timer.rechargeRate) && timer.rechargeRate > 0 ? timer.rechargeRate : 30;
@@ -171,7 +224,11 @@ async function render() {
     const resetButton = document.getElementById("resetButton");
     if (timer.resetToken === true) {
       resetButton.classList.remove("hidden");
-      resetButton.addEventListener("click", handleReset);
+      // render() runs again at each blocking-hours boundary; wire the click once.
+      if (!resetButton.dataset.wired) {
+        resetButton.dataset.wired = "true";
+        resetButton.addEventListener("click", handleReset);
+      }
     } else {
       resetButton.classList.add("hidden");
     }

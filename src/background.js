@@ -465,6 +465,62 @@ function buildBlockUrl(domain, originUrl) {
   return base + "?" + params.toString();
 }
 
+// Whether blocking applies to a timer right now. A domain whose blocking hours
+// are on and do not include the current local time is open: no countdown, no
+// block. A timer without a schedule is active at all hours.
+function isBlockingActiveNow(timerData) {
+  if (typeof TimerUtils !== "undefined" && TimerUtils.isBlockingActive) {
+    return TimerUtils.isBlockingActive(timerData, new Date());
+  }
+  return true;
+}
+
+const BLOCKING_HOURS_ALARM = "blockingHoursBoundary";
+
+// Set one alarm for the soonest start or end of any domain's blocking hours,
+// so the worker re-checks the active tab at that moment without a reload.
+async function scheduleBlockingHoursAlarm() {
+  if (typeof chrome === "undefined" || !chrome.alarms) {
+    return;
+  }
+  try {
+    const domainTimers = (await getDomainTimers()) || {};
+    const msUntil =
+      typeof TimerUtils !== "undefined" && TimerUtils.msUntilNextScheduleChange
+        ? TimerUtils.msUntilNextScheduleChange(domainTimers, new Date())
+        : null;
+    await chrome.alarms.clear(BLOCKING_HOURS_ALARM);
+    if (msUntil !== null) {
+      // A one-second margin puts the re-check inside the new minute.
+      await chrome.alarms.create(BLOCKING_HOURS_ALARM, { when: Date.now() + msUntil + 1000 });
+    }
+  } catch (error) {
+    debugLog("Error scheduling blocking-hours alarm:", error);
+  }
+}
+
+// At a blocking-hours boundary, re-handle the active tab (start or stop its
+// countdown, or block it) and set the alarm for the next boundary.
+async function handleBlockingHoursBoundary() {
+  try {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tabs.length > 0) {
+      await handleTimerForTab(tabs[0]);
+    }
+  } catch (error) {
+    debugLog("Error re-checking tab at blocking-hours boundary:", error);
+  }
+  await scheduleBlockingHoursAlarm();
+}
+
+if (typeof chrome !== "undefined" && chrome.alarms && chrome.alarms.onAlarm) {
+  chrome.alarms.onAlarm.addListener(async (alarm) => {
+    if (alarm && alarm.name === BLOCKING_HOURS_ALARM) {
+      await handleBlockingHoursBoundary();
+    }
+  });
+}
+
 // This function contains the core logic for starting and stopping timers based on the active tab.
 async function handleTimerForTab(tab) {
   debugLog("Handling timer for tab:", tab?.url);
@@ -532,6 +588,13 @@ async function handleTimerForTab(tab) {
     }
 
     debugLog("Found timer for domain:", domain, "Time left:", domainTimer.timeLeft);
+
+    // Outside the domain's blocking hours the site is open: no countdown, no
+    // block, and no tracking session. Its recharge clock keeps running.
+    if (!isBlockingActiveNow(domainTimer)) {
+      debugLog("Outside blocking hours for domain:", domain);
+      return;
+    }
 
     // Initialize time tracking for this domain and start session
     await initializeDomainTimeTracking(domain);
@@ -610,6 +673,12 @@ async function handleTimerForTab(tab) {
 
         if (!currentTimers || !currentTimers[domain]) {
           await stopActiveTimerAndTracking(`tick: timer for ${domain} no longer in storage`);
+          return;
+        }
+
+        // The blocking hours ended during the visit: stop counting down.
+        if (!isBlockingActiveNow(currentTimers[domain])) {
+          await stopActiveTimerAndTracking(`tick: blocking hours ended for ${domain}`);
           return;
         }
 
@@ -808,6 +877,9 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
   if (request.action === "timerSettingsChanged") {
     debugLog("Timer settings changed, restarting timer for current tab");
 
+    // Blocking hours can change with the settings; move the boundary alarm.
+    await scheduleBlockingHoursAlarm();
+
     // Get the current active tab and restart its timer
     try {
       const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -823,6 +895,14 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
     // Navigate the requesting tab to the block page. The caller is the content
     // script, which sends the domain and URL that were denied.
     try {
+      // Outside the domain's blocking hours the site is open; ignore the
+      // request (the content script can act on a stale schedule).
+      const domainTimers = (await getDomainTimers()) || {};
+      const timer = domainTimers[request.domain];
+      if (timer && !isBlockingActiveNow(timer)) {
+        sendResponse({ success: false, reason: "outside-blocking-hours" });
+        return true;
+      }
       const blockedUrl = buildBlockUrl(request.domain || "", request.url || "");
       if (sender && sender.tab && sender.tab.id) {
         chrome.tabs.update(sender.tab.id, { url: blockedUrl });
@@ -900,6 +980,9 @@ async function initialize() {
 
   // Set up idle detection - check every 30 seconds for sessions idle longer than 2 minutes
   setInterval(endIdleSessions, 30 * 1000);
+
+  // Re-check tabs at the next start or end of any domain's blocking hours.
+  scheduleBlockingHoursAlarm();
   debugLog("Extension initialization complete");
 }
 

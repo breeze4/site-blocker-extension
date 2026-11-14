@@ -72,10 +72,14 @@ Each tracked domain can limit its blocking to one daily time window, such as 9:0
 - Toggle on, inside the window: the domain behaves as at all hours before. The countdown runs, the budget blocks at zero, and recharge and reset tokens work.
 - Toggle on, outside the window: the site is open. The worker doesn't start a countdown, doesn't block, and doesn't start a time-tracking session. The overlay is hidden. The recharge clock keeps running, so the budget refills during off-hours visits too.
 - The window includes its start minute and excludes its end minute. A start later than the end crosses midnight: 22:00-02:00 covers 22:00 through 01:59. A start equal to the end covers the whole day. The Options page refuses to save an equal start and end with the toggle on.
+- Weekdays only, a second toggle, off by default: with it on, the window applies only Monday to Friday, by the browser's local day. On Saturday and Sunday the site is open at all hours, as it is outside the window. A stored `schedule` without `weekdaysOnly` reads as off, so existing windows keep applying every day. The toggle has no effect while the blocking-hours toggle is off.
+  - A window that crosses midnight belongs to the day it starts. With 22:00-02:00, Friday's window runs through Saturday 01:59, and Sunday's window (Sunday 22:00 through Monday 01:59) doesn't apply.
+  - A start equal to the end with Weekdays only on covers whole weekdays, from Monday 00:00 to Saturday 00:00.
+  - The next start after Friday's window is Monday's, so the boundary alarm and the content-script timeout wait across the weekend. The popup, block page, and Options status line add ", weekdays" to the hours and name the day of a change two or more days away: "Blocking starts Monday at 9:00 AM."
 - The worker sets one `chrome.alarms` alarm, `blockingHoursBoundary`, for the soonest start or end across all domains, plus one second. When the alarm fires, the worker re-handles the active tab and sets the next alarm. A tab on the domain when the window starts is counted or blocked without a reload. The worker also sets the alarm at startup and after each `timerSettingsChanged` message.
 - Each countdown tick re-checks the window and stops the countdown when the window ends during a visit.
 - The content script sets its own timeout for the domain's next boundary and re-runs its load check then. An exhausted background tab asks to be blocked when the window starts. The worker refuses a `blockTab` request from a domain outside its window.
-- The pure helpers `isWithinWindow`, `isBlockingActive`, `getScheduleStatus`, `describeSchedule`, and `msUntilNextScheduleChange` live in `timer-utils.js`.
+- The pure helpers `isWithinWindow`, `isWeekday`, `isBlockingActive`, `getScheduleStatus`, `describeSchedule`, and `msUntilNextScheduleChange` live in `timer-utils.js`.
 
 ### Time-tracking analytics
 
@@ -160,7 +164,8 @@ Per-domain timer configuration and current state.
     "schedule": {                  // optional blocking hours; absent means off
       "enabled": true,             // on: block only inside the window; off: block at all hours
       "start": "09:00",            // "HH:MM" 24-hour local time, inclusive
-      "end": "17:00"               // "HH:MM" 24-hour local time, exclusive; earlier than start crosses midnight
+      "end": "17:00",              // "HH:MM" 24-hour local time, exclusive; earlier than start crosses midnight
+      "weekdaysOnly": false        // on: the window applies Monday to Friday only; absent means off
     }
   }
 }

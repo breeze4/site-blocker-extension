@@ -1230,6 +1230,43 @@ describe('Options.js Integration', () => {
       expect(row.cells[9].textContent).toContain('Delete');
     });
 
+    test('the Weekdays only toggle loads from storage and saves with the window', async () => {
+      const stored = {
+        'example.com': {
+          originalTime: 300, timeLeft: 150, rechargeRate: 30,
+          lastVisitTimestamp: Date.now(), expiredMessageLogged: false,
+          isBlocked: false, resetToken: false, tokenThresholdHours: 8,
+          awaySince: Date.now(),
+          schedule: { enabled: true, start: '09:00', end: '17:00' },
+        },
+      };
+      global.StorageUtils.getFromStorage = jest.fn((key) =>
+        Promise.resolve(key === 'domainTimers' ? JSON.parse(JSON.stringify(stored)) : null)
+      );
+      global.StorageUtils.setToStorage = jest.fn(() => Promise.resolve());
+      global.chrome.runtime.sendMessage = jest.fn(() => Promise.resolve());
+
+      require('../src/options.js');
+      for (let i = 0; i < 10; i++) { await Promise.resolve(); }
+
+      const cell = document.querySelector('#domainListBody tr').cells[8];
+      const weekdays = cell.querySelector('.schedule-weekdays');
+      expect(weekdays).not.toBeNull();
+      expect(weekdays.checked).toBe(false);
+
+      weekdays.checked = true;
+      weekdays.dispatchEvent(new Event('change'));
+      for (let i = 0; i < 10; i++) { await Promise.resolve(); }
+
+      expect(global.StorageUtils.setToStorage).toHaveBeenCalledTimes(1);
+      const saved = global.StorageUtils.setToStorage.mock.calls[0][0].domainTimers['example.com'];
+      expect(saved.schedule).toEqual({
+        enabled: true, start: '09:00', end: '17:00', weekdaysOnly: true,
+      });
+      expect(cell.querySelector('.schedule-status').textContent).toContain('weekdays');
+      expect(global.chrome.runtime.sendMessage).toHaveBeenCalledWith({ action: 'timerSettingsChanged' });
+    });
+
     test('the table has no reset-token column, even when a token is held', async () => {
       global.StorageUtils.getFromStorage = jest.fn((key) => {
         if (key === 'domainTimers') {

@@ -417,7 +417,7 @@ function buildScheduleCell(domain, timerEntry) {
   const schedule =
     TimerUtils && TimerUtils.normalizeSchedule
       ? TimerUtils.normalizeSchedule(timerEntry)
-      : { enabled: false, start: "09:00", end: "17:00" };
+      : { enabled: false, start: "09:00", end: "17:00", weekdaysOnly: false };
 
   const cell = document.createElement("td");
   cell.className = "schedule-cell";
@@ -454,13 +454,24 @@ function buildScheduleCell(domain, timerEntry) {
   endInput.value = schedule.end;
   endInput.setAttribute("aria-label", `Blocking end time for ${domain}`);
 
-  // Grid layout: the toggle spans both columns, then "From [start]" and
+  const weekdaysLabel = document.createElement("label");
+  weekdaysLabel.className = "schedule-toggle";
+  const weekdaysToggle = document.createElement("input");
+  weekdaysToggle.type = "checkbox";
+  weekdaysToggle.className = "schedule-weekdays";
+  weekdaysToggle.checked = schedule.weekdaysOnly;
+  weekdaysToggle.setAttribute("aria-label", `Block ${domain} on weekdays only`);
+  weekdaysLabel.appendChild(weekdaysToggle);
+  weekdaysLabel.appendChild(document.createTextNode(" Weekdays only"));
+
+  // Grid layout: each toggle spans both columns, and "From [start]" and
   // "To [end]" each take one row.
   controls.appendChild(toggleLabel);
   controls.appendChild(fromText);
   controls.appendChild(startInput);
   controls.appendChild(toText);
   controls.appendChild(endInput);
+  controls.appendChild(weekdaysLabel);
 
   const status = document.createElement("div");
   status.className = "schedule-status";
@@ -473,6 +484,7 @@ function buildScheduleCell(domain, timerEntry) {
   toggle.addEventListener("change", onChange);
   startInput.addEventListener("change", onChange);
   endInput.addEventListener("change", onChange);
+  weekdaysToggle.addEventListener("change", onChange);
 
   return cell;
 }
@@ -483,6 +495,7 @@ async function saveSchedule(domain, cell) {
   const enabled = cell.querySelector(".schedule-enabled").checked;
   const start = cell.querySelector(".schedule-start").value;
   const end = cell.querySelector(".schedule-end").value;
+  const weekdaysOnly = cell.querySelector(".schedule-weekdays").checked;
   const status = cell.querySelector(".schedule-status");
 
   if (TimerUtils.parseTimeOfDay(start) === null || TimerUtils.parseTimeOfDay(end) === null) {
@@ -503,7 +516,7 @@ async function saveSchedule(domain, cell) {
     if (!isPlainRecord(domainTimers[domain])) {
       return;
     }
-    domainTimers[domain].schedule = { enabled, start, end };
+    domainTimers[domain].schedule = { enabled, start, end, weekdaysOnly };
     await StorageUtils.setToStorage({ domainTimers });
     status.textContent = scheduleStatusText(domainTimers[domain]);
 

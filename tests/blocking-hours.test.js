@@ -111,6 +111,7 @@ describe("isBlockingActive and the toggle", () => {
       enabled: false,
       start: "09:00",
       end: "17:00",
+      weekdaysOnly: false,
     });
   });
 
@@ -119,10 +120,14 @@ describe("isBlockingActive and the toggle", () => {
       enabled: false,
       start: "09:00",
       end: "17:00",
+      weekdaysOnly: false,
     });
     expect(
       TimerUtils.normalizeSchedule(timerWith({ enabled: "yes", start: "25:00", end: 5 }))
-    ).toEqual({ enabled: false, start: "09:00", end: "17:00" });
+    ).toEqual({ enabled: false, start: "09:00", end: "17:00", weekdaysOnly: false });
+    expect(
+      TimerUtils.normalizeSchedule(timerWith({ ...NINE_TO_FIVE, weekdaysOnly: "yes" })).weekdaysOnly
+    ).toBe(false);
   });
 
   test("accepts a ms timestamp as well as a Date", () => {
@@ -178,6 +183,142 @@ describe("getScheduleStatus and describeSchedule", () => {
     expect(TimerUtils.msUntilNextScheduleChange({ "c.com": timerWith(undefined) }, at(1, 0))).toBe(
       null
     );
+  });
+});
+
+// 2026-11-10 is a Tuesday, so the 13th is a Friday, the 14th a Saturday, the
+// 15th a Sunday, and the 16th a Monday.
+function on(dayOfMonth, hours, minutes = 0) {
+  return new Date(2026, 10, dayOfMonth, hours, minutes);
+}
+
+const WEEKDAY_NINE_TO_FIVE = { ...NINE_TO_FIVE, weekdaysOnly: true };
+const WEEKDAY_OVERNIGHT = { ...OVERNIGHT, weekdaysOnly: true };
+const WEEKDAY_ALL_DAY = { enabled: true, start: "09:00", end: "09:00", weekdaysOnly: true };
+
+describe("weekdays only", () => {
+  test("the fixture days are the weekdays the tests assume", () => {
+    expect([13, 14, 15, 16].map((d) => on(d, 12).getDay())).toEqual([5, 6, 0, 1]);
+  });
+
+  test("active inside the window Monday to Friday, never on the weekend", () => {
+    const timer = timerWith(WEEKDAY_NINE_TO_FIVE);
+    for (const day of [9, 10, 11, 12, 13, 16]) {
+      expect(TimerUtils.isBlockingActive(timer, on(day, 12))).toBe(true);
+      expect(TimerUtils.isBlockingActive(timer, on(day, 8, 59))).toBe(false);
+      expect(TimerUtils.isBlockingActive(timer, on(day, 17))).toBe(false);
+    }
+    for (const day of [14, 15]) {
+      for (const hour of [0, 9, 12, 16, 23]) {
+        expect(TimerUtils.isBlockingActive(timer, on(day, hour))).toBe(false);
+      }
+    }
+  });
+
+  test("weekdays only does nothing while the hours toggle is off", () => {
+    const timer = timerWith({ ...WEEKDAY_NINE_TO_FIVE, enabled: false });
+    expect(TimerUtils.isBlockingActive(timer, on(14, 12))).toBe(true);
+    expect(TimerUtils.isBlockingActive(timer, on(14, 3))).toBe(true);
+  });
+
+  test("without weekdays only the weekend blocks as before", () => {
+    expect(TimerUtils.isBlockingActive(timerWith(NINE_TO_FIVE), on(14, 12))).toBe(true);
+  });
+
+  test("an overnight window belongs to the day it starts", () => {
+    const timer = timerWith(WEEKDAY_OVERNIGHT);
+    expect(TimerUtils.isBlockingActive(timer, on(13, 23))).toBe(true); // Friday night
+    expect(TimerUtils.isBlockingActive(timer, on(14, 1))).toBe(true); // Friday's window
+    expect(TimerUtils.isBlockingActive(timer, on(14, 2))).toBe(false);
+    expect(TimerUtils.isBlockingActive(timer, on(14, 23))).toBe(false); // Saturday night
+    expect(TimerUtils.isBlockingActive(timer, on(15, 1))).toBe(false);
+    expect(TimerUtils.isBlockingActive(timer, on(15, 23))).toBe(false); // Sunday night
+    expect(TimerUtils.isBlockingActive(timer, on(16, 1))).toBe(false); // Sunday's window
+    expect(TimerUtils.isBlockingActive(timer, on(16, 22))).toBe(true); // Monday night
+  });
+
+  test("after Friday's window the next change is Monday's start", () => {
+    const timer = timerWith(WEEKDAY_NINE_TO_FIVE);
+    for (const now of [on(13, 17), on(13, 18), on(14, 12), on(15, 23, 59)]) {
+      const status = TimerUtils.getScheduleStatus(timer, now);
+      expect(status.active).toBe(false);
+      expect(status.nextChange.getTime()).toBe(on(16, 9).getTime());
+      expect(status.msUntilChange).toBe(on(16, 9).getTime() - now.getTime());
+    }
+  });
+
+  test("midweek the next change is the same as without weekdays only", () => {
+    const timer = timerWith(WEEKDAY_NINE_TO_FIVE);
+    expect(TimerUtils.getScheduleStatus(timer, on(10, 16)).nextChange.getTime()).toBe(
+      on(10, 17).getTime()
+    );
+    expect(TimerUtils.getScheduleStatus(timer, on(10, 18)).nextChange.getTime()).toBe(
+      on(11, 9).getTime()
+    );
+    expect(TimerUtils.getScheduleStatus(timer, on(13, 16)).nextChange.getTime()).toBe(
+      on(13, 17).getTime()
+    );
+  });
+
+  test("an overnight window on Friday ends Saturday morning, then waits for Monday night", () => {
+    const timer = timerWith(WEEKDAY_OVERNIGHT);
+    const friday = TimerUtils.getScheduleStatus(timer, on(14, 1));
+    expect(friday.active).toBe(true);
+    expect(friday.nextChange.getTime()).toBe(on(14, 2).getTime());
+    const saturday = TimerUtils.getScheduleStatus(timer, on(14, 3));
+    expect(saturday.active).toBe(false);
+    expect(saturday.nextChange.getTime()).toBe(on(16, 22).getTime());
+  });
+
+  test("an equal start and end covers whole weekdays, midnight to midnight", () => {
+    const timer = timerWith(WEEKDAY_ALL_DAY);
+    const tuesday = TimerUtils.getScheduleStatus(timer, on(10, 3));
+    expect(tuesday.active).toBe(true);
+    expect(tuesday.nextChange.getTime()).toBe(on(14, 0).getTime());
+    const saturday = TimerUtils.getScheduleStatus(timer, on(14, 12));
+    expect(saturday.active).toBe(false);
+    expect(saturday.nextChange.getTime()).toBe(on(16, 0).getTime());
+  });
+
+  test("the status always agrees with isBlockingActive at its next change", () => {
+    for (const schedule of [WEEKDAY_NINE_TO_FIVE, WEEKDAY_OVERNIGHT, WEEKDAY_ALL_DAY, OVERNIGHT]) {
+      const timer = timerWith(schedule);
+      for (let hour = 0; hour < 24 * 9; hour++) {
+        const now = new Date(2026, 10, 9, hour, 30);
+        const status = TimerUtils.getScheduleStatus(timer, now);
+        const justBefore = new Date(status.nextChange.getTime() - 60000);
+        expect(TimerUtils.isBlockingActive(timer, justBefore)).toBe(status.active);
+        expect(TimerUtils.isBlockingActive(timer, status.nextChange)).toBe(!status.active);
+        expect(status.msUntilChange).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  test("describes the weekdays range and names a day two or more days away", () => {
+    const timer = timerWith(WEEKDAY_NINE_TO_FIVE);
+    expect(TimerUtils.describeSchedule(timer, on(10, 10))).toBe(
+      "Blocking hours 9:00 AM-5:00 PM, weekdays. Blocking ends at 5:00 PM."
+    );
+    expect(TimerUtils.describeSchedule(timer, on(10, 18))).toBe(
+      "Outside blocking hours (9:00 AM-5:00 PM, weekdays). Blocking starts at 9:00 AM."
+    );
+    expect(TimerUtils.describeSchedule(timer, on(13, 18))).toBe(
+      "Outside blocking hours (9:00 AM-5:00 PM, weekdays). Blocking starts Monday at 9:00 AM."
+    );
+    expect(TimerUtils.describeSchedule(timer, on(14, 12))).toBe(
+      "Outside blocking hours (9:00 AM-5:00 PM, weekdays). Blocking starts Monday at 9:00 AM."
+    );
+    expect(TimerUtils.describeSchedule(timer, on(15, 12))).toBe(
+      "Outside blocking hours (9:00 AM-5:00 PM, weekdays). Blocking starts at 9:00 AM."
+    );
+    expect(TimerUtils.describeSchedule(timerWith(WEEKDAY_ALL_DAY), on(10, 12))).toBe(
+      "Blocking hours all day, weekdays. Blocking ends Saturday at 12:00 AM."
+    );
+  });
+
+  test("msUntilNextScheduleChange skips the weekend", () => {
+    const timers = { "a.com": timerWith(WEEKDAY_NINE_TO_FIVE) };
+    expect(TimerUtils.msUntilNextScheduleChange(timers, on(14, 9))).toBe(48 * 60 * 60 * 1000);
   });
 });
 
@@ -319,6 +460,41 @@ describe("worker and blocking hours", () => {
       1,
       expect.objectContaining({ url: expect.stringContaining("blocked.html?") })
     );
+  });
+
+  test("weekdays only: on Saturday an exhausted domain is open during the window hours", async () => {
+    jest.setSystemTime(on(14, 12));
+    const { chrome, intervals, listeners, storage } = loadBackground({
+      domainTimers: {
+        "example.com": timerWith(WEEKDAY_NINE_TO_FIVE, { timeLeft: 0, isBlocked: true }),
+      },
+      timeTracking: {},
+    });
+    await flush();
+
+    await listeners.updated(1, { status: "complete" }, TAB);
+
+    expect(chrome.tabs.update).not.toHaveBeenCalled();
+    expect(intervals).toHaveLength(1); // only the idle sweep
+    expect(storage.timeTracking["example.com"]).toBeUndefined();
+    // The boundary alarm waits for Monday 09:00, plus one second.
+    const [, alarmInfo] = chrome.alarms.create.mock.calls[0];
+    expect(alarmInfo.when).toBe(on(16, 9).getTime() + 1000);
+  });
+
+  test("weekdays only: on Friday an exhausted domain is blocked inside the window", async () => {
+    jest.setSystemTime(on(13, 12));
+    const { chrome, listeners } = loadBackground({
+      domainTimers: {
+        "example.com": timerWith(WEEKDAY_NINE_TO_FIVE, { timeLeft: 0, isBlocked: true }),
+      },
+      timeTracking: {},
+    });
+    await flush();
+
+    await listeners.updated(1, { status: "complete" }, TAB);
+
+    expect(chrome.tabs.update).toHaveBeenCalled();
   });
 
   test("toggle off blocks an exhausted domain at any hour", async () => {

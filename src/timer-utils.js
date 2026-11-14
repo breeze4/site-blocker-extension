@@ -485,17 +485,19 @@ function shouldOfferOverlayReset(timerData) {
 
 // ---------------------------------------------------------------------------
 // Blocking hours: one optional daily time window per domain, stored as
-// `schedule: { enabled, start: "HH:MM", end: "HH:MM" }` in browser local time.
+// `schedule: { enabled, start: "HH:MM", end: "HH:MM", weekdaysOnly }` in browser
+// local time. With `weekdaysOnly` on, only windows that start Monday to Friday
+// apply.
 // This file holds only function declarations so it can load more than once in
 // one script context.
 // ---------------------------------------------------------------------------
 
 /**
  * The window a domain gets before the user sets one.
- * @returns {{ enabled: boolean, start: string, end: string }}
+ * @returns {{ enabled: boolean, start: string, end: string, weekdaysOnly: boolean }}
  */
 function defaultSchedule() {
-  return { enabled: false, start: "09:00", end: "17:00" };
+  return { enabled: false, start: "09:00", end: "17:00", weekdaysOnly: false };
 }
 
 /**
@@ -536,9 +538,9 @@ function formatTimeOfDay(minutes) {
 
 /**
  * Read a timer's blocking-hours window forgivingly. A missing or malformed
- * schedule is off, with the 09:00-17:00 default window.
+ * schedule is off, with the 09:00-17:00 default window, on every day.
  * @param {Object} timerData
- * @returns {{ enabled: boolean, start: string, end: string }}
+ * @returns {{ enabled: boolean, start: string, end: string, weekdaysOnly: boolean }}
  */
 function normalizeSchedule(timerData) {
   const fallback = defaultSchedule();
@@ -548,7 +550,12 @@ function normalizeSchedule(timerData) {
       : {};
   const start = parseTimeOfDay(schedule.start) !== null ? schedule.start.trim() : fallback.start;
   const end = parseTimeOfDay(schedule.end) !== null ? schedule.end.trim() : fallback.end;
-  return { enabled: schedule.enabled === true, start, end };
+  return {
+    enabled: schedule.enabled === true,
+    start,
+    end,
+    weekdaysOnly: schedule.weekdaysOnly === true,
+  };
 }
 
 /**
@@ -571,9 +578,21 @@ function isWithinWindow(startMinutes, endMinutes, nowMinutes) {
 }
 
 /**
+ * Monday to Friday, by the local day of a Date.
+ * @param {Date} date
+ * @returns {boolean}
+ */
+function isWeekday(date) {
+  const day = date.getDay();
+  return day >= 1 && day <= 5;
+}
+
+/**
  * Decide whether blocking applies to a domain at a given moment. With the
  * schedule off, blocking applies at all hours. With it on, blocking applies
- * only inside the window, in the browser's local time.
+ * only inside the window, in the browser's local time. With `weekdaysOnly` on,
+ * the window must also have started on a weekday: the after-midnight part of a
+ * window that crosses midnight belongs to the day before.
  * @param {Object} timerData
  * @param {Date|number} now - Date or ms timestamp (for testing)
  * @returns {boolean}
@@ -585,47 +604,101 @@ function isBlockingActive(timerData, now = new Date()) {
   }
   const date = now instanceof Date ? now : new Date(now);
   const nowMinutes = date.getHours() * 60 + date.getMinutes();
-  return isWithinWindow(parseTimeOfDay(schedule.start), parseTimeOfDay(schedule.end), nowMinutes);
+  const startMinutes = parseTimeOfDay(schedule.start);
+  const endMinutes = parseTimeOfDay(schedule.end);
+  if (!isWithinWindow(startMinutes, endMinutes, nowMinutes)) {
+    return false;
+  }
+  if (!schedule.weekdaysOnly) {
+    return true;
+  }
+  const startedYesterday = startMinutes > endMinutes && nowMinutes < endMinutes;
+  const startDay = new Date(date.getTime());
+  if (startedYesterday) {
+    startDay.setDate(startDay.getDate() - 1);
+  }
+  return isWeekday(startDay);
+}
+
+/**
+ * The blocking windows near a moment, as merged [start, end) ms pairs in time
+ * order, from yesterday's window to the one a week ahead. Windows that touch
+ * (whole-day windows on consecutive days) merge into one.
+ * @param {{ start: string, end: string, weekdaysOnly: boolean }} schedule
+ * @param {Date} date
+ * @returns {Array<[number, number]>}
+ */
+function scheduleWindowsAround(schedule, date) {
+  const startMinutes = parseTimeOfDay(schedule.start);
+  const endMinutes = parseTimeOfDay(schedule.end);
+  const wholeDay = startMinutes === endMinutes;
+  const windows = [];
+  for (let offset = -1; offset <= 7; offset++) {
+    const dayOfMonth = date.getDate() + offset;
+    const day = new Date(date.getFullYear(), date.getMonth(), dayOfMonth);
+    if (schedule.weekdaysOnly && !isWeekday(day)) {
+      continue;
+    }
+    // Minutes past 24:00 roll into the next day, so this also follows DST.
+    const from = wholeDay ? 0 : startMinutes;
+    const to = wholeDay ? 24 * 60 : endMinutes < startMinutes ? endMinutes + 24 * 60 : endMinutes;
+    const startMs = new Date(date.getFullYear(), date.getMonth(), dayOfMonth, 0, from).getTime();
+    const endMs = new Date(date.getFullYear(), date.getMonth(), dayOfMonth, 0, to).getTime();
+    const last = windows[windows.length - 1];
+    if (last && last[1] >= startMs) {
+      last[1] = Math.max(last[1], endMs);
+    } else {
+      windows.push([startMs, endMs]);
+    }
+  }
+  return windows;
 }
 
 /**
  * Describe a domain's blocking-hours state for display and for scheduling the
  * next re-check. `nextChange` is when blocking next starts (when inactive) or
  * ends (when active). It is null when the schedule is off or covers the whole
- * day.
+ * of every day.
  * @param {Object} timerData
  * @param {Date|number} now
  * @returns {{ enabled: boolean, active: boolean, start: string, end: string,
- *   nextChange: Date|null, msUntilChange: number|null }}
+ *   weekdaysOnly: boolean, nextChange: Date|null, msUntilChange: number|null }}
  */
 function getScheduleStatus(timerData, now = new Date()) {
   const schedule = normalizeSchedule(timerData);
   const date = now instanceof Date ? now : new Date(now);
   const active = isBlockingActive(timerData, date);
-  const startMinutes = parseTimeOfDay(schedule.start);
-  const endMinutes = parseTimeOfDay(schedule.end);
+  const wholeDay = parseTimeOfDay(schedule.start) === parseTimeOfDay(schedule.end);
 
-  if (!schedule.enabled || startMinutes === endMinutes) {
+  if (!schedule.enabled || (wholeDay && !schedule.weekdaysOnly)) {
     return { ...schedule, active, nextChange: null, msUntilChange: null };
   }
 
-  const targetMinutes = active ? endMinutes : startMinutes;
-  const next = new Date(date.getTime());
-  next.setHours(Math.floor(targetMinutes / 60), targetMinutes % 60, 0, 0);
-  if (next.getTime() <= date.getTime()) {
-    next.setDate(next.getDate() + 1);
+  const nowMs = date.getTime();
+  let nextMs = null;
+  for (const [startMs, endMs] of scheduleWindowsAround(schedule, date)) {
+    const boundary = active ? endMs : startMs;
+    if (boundary > nowMs) {
+      nextMs = boundary;
+      break;
+    }
+  }
+  if (nextMs === null) {
+    return { ...schedule, active, nextChange: null, msUntilChange: null };
   }
   return {
     ...schedule,
     active,
-    nextChange: next,
-    msUntilChange: next.getTime() - date.getTime(),
+    nextChange: new Date(nextMs),
+    msUntilChange: nextMs - nowMs,
   };
 }
 
 /**
  * One-line description of a domain's blocking hours for the popup and block
  * page, such as "Blocking hours 9:00 AM-5:00 PM. Blocking ends at 5:00 PM."
+ * With `weekdaysOnly` on the range reads "9:00 AM-5:00 PM, weekdays". A change
+ * two or more days away names its day: "Blocking starts Monday at 9:00 AM."
  * Empty when the schedule is off.
  * @param {Object} timerData
  * @param {Date|number} now
@@ -639,13 +712,24 @@ function describeSchedule(timerData, now = new Date()) {
   if (!status.nextChange) {
     return "Blocking hours cover the whole day.";
   }
-  const range = `${formatTimeOfDay(parseTimeOfDay(status.start))}-${formatTimeOfDay(
-    parseTimeOfDay(status.end)
-  )}`;
-  const at = formatTimeOfDay(status.nextChange.getHours() * 60 + status.nextChange.getMinutes());
+  const date = now instanceof Date ? now : new Date(now);
+  const startMinutes = parseTimeOfDay(status.start);
+  const endMinutes = parseTimeOfDay(status.end);
+  const hours =
+    startMinutes === endMinutes
+      ? "all day"
+      : `${formatTimeOfDay(startMinutes)}-${formatTimeOfDay(endMinutes)}`;
+  const range = status.weekdaysOnly ? `${hours}, weekdays` : hours;
+  const next = status.nextChange;
+  const today = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const nextDay = new Date(next.getFullYear(), next.getMonth(), next.getDate());
+  const daysAway = Math.round((nextDay.getTime() - today.getTime()) / 86400000);
+  const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const time = formatTimeOfDay(next.getHours() * 60 + next.getMinutes());
+  const at = daysAway >= 2 ? `${dayNames[next.getDay()]} at ${time}` : `at ${time}`;
   return status.active
-    ? `Blocking hours ${range}. Blocking ends at ${at}.`
-    : `Outside blocking hours (${range}). Blocking starts at ${at}.`;
+    ? `Blocking hours ${range}. Blocking ends ${at}.`
+    : `Outside blocking hours (${range}). Blocking starts ${at}.`;
 }
 
 /**
@@ -676,6 +760,7 @@ if (typeof module !== "undefined" && module.exports) {
     formatTimeOfDay,
     normalizeSchedule,
     isWithinWindow,
+    isWeekday,
     isBlockingActive,
     getScheduleStatus,
     describeSchedule,
@@ -708,6 +793,7 @@ if (typeof module !== "undefined" && module.exports) {
     formatTimeOfDay,
     normalizeSchedule,
     isWithinWindow,
+    isWeekday,
     isBlockingActive,
     getScheduleStatus,
     describeSchedule,
@@ -740,6 +826,7 @@ if (typeof module !== "undefined" && module.exports) {
     formatTimeOfDay,
     normalizeSchedule,
     isWithinWindow,
+    isWeekday,
     isBlockingActive,
     getScheduleStatus,
     describeSchedule,
